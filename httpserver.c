@@ -344,11 +344,13 @@ void *server_thread(void *arg) {
                 response(socket, request, status_code, -1);
             }
         }
+        /*
         char *garbage_buf[2048];
         int garbage_bytes = 1;
         while (garbage_bytes != 0) {
             garbage_bytes = read(socket, garbage_buf, 2048);
         }
+        */
         freeRequest(&request);
         free(status_code);
         free(requestBuffer);

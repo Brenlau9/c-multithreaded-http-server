@@ -1,0 +1,10 @@
+FROM ubuntu:22.04
+
+RUN apt-get update && \
+    apt-get install -y build-essential clang curl && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# We'll mount the source from your Mac, so no COPY here.
+CMD ["/bin/bash"]

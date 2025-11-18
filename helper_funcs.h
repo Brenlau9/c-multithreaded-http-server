@@ -1,9 +1,7 @@
 /**
- * @File asgn2_helper_funcs.h
+ * @file helper_funcs.h
+ * @brief Helper functions for sockets and robust I/O.
  *
- * Interfaces provided as starter code for Assignment 2.
- *
- * @author Andrew Quinn
  */
 
 #pragma once
@@ -11,103 +9,82 @@
 #include <stdint.h>
 #include <sys/types.h>
 
-/** @struct Listener_Socket
- *  @brief This structure represents a socket listening for connections
+/**
+ * @struct Listener_Socket
+ * @brief Represents a socket listening for incoming connections.
  */
 typedef struct {
-    /** @brief The socket for the listening connection. Note: do not
-    *          use this directly! Take a look at listener_init and
-    *          listener_accept instead!
-    */
-    int fd;
+    int fd;  // listening socket file descriptor
 } Listener_Socket;
 
-/** @brief Initializes a listener socket that listens on the provided
- *         port on all of the interfaces for the host.
+/**
+ * @brief Initialize a listening TCP socket on the given port.
  *
- *  @param sock The Listener_Socket to initialize.
+ * @param sock  Pointer to Listener_Socket to initialize.
+ * @param port  Port number to bind and listen on.
  *
- *  @param port The port on which to listen.
- *
- *  @return 0, indicating success, or -1, indicating that it failed to
- *          listen.
+ * @return 0 on success, -1 on error (errno is set).
  */
 int listener_init(Listener_Socket *sock, int port);
 
-/** @brief Accept a new connection and initialize a 5 second timeout
+/**
+ * @brief Accept a connection on the listening socket.
  *
- *  @param sock The Listener_Socket from which to get the new
- *              connection.
+ * @param sock Pointer to Listener_Socket.
  *
- *  @return An socket for the new connection, or -1, if there is an
- *          error. Sets errno according to any errors that occur.
+ * @return A newly accepted client socket fd on success, or -1 on error.
  */
 int listener_accept(Listener_Socket *sock);
 
-/** @brief Reads bytes from fd into buf until either (1) it has read
- *         n, (2) fd is out of bytes to return, (3) fd times out,
- *         (4) there is an error reading bytes, or (5) buf contains
- *         string.
+/**
+ * @brief Read from fd into buf until:
+ *        - the delimiter string appears in buf,
+ *        - max_bytes-1 bytes have been read, or
+ *        - EOF or error occurs.
  *
- *  @param fd The file descriptor or socket from which to read.
+ * buf is always NUL-terminated if max_bytes > 0.
  *
- *  @param buf The buffer fd which to put read data.
+ * @param fd         File descriptor to read from.
+ * @param buf        Destination buffer.
+ * @param max_bytes  Maximum number of bytes to place in buf (including NUL).
+ * @param delim      Delimiter string to search for (e.g. "\r\n\r\n").
  *
- *  @param n The maximum bytes to read.  Must be less than or
- *           equal to the size of buf.
- *
- *  @param str The string to search for, or NULL, indicating that
- *             there is no string to search for.
- *
- *  @return The number of bytes read, or -1, indicating an error.
- *          Note: this function treats a timeout as an error.  Sets
- *          errno according to any errors that occur.
+ * @return Number of bytes read into buf (excluding NUL) on success, or -1 on error.
  */
-ssize_t read_until(int fd, char buf[], size_t n, char *str);
+ssize_t read_until(int fd, char *buf, size_t max_bytes, const char *delim);
 
-/** @brief Reads bytes from fd into buf until either (1) fd has read
- *         n bytes, (2) fd is out of bytes to return, or (3) there is
- *         an error reading bytes.
+/**
+ * @brief Read exactly n bytes from fd into buf unless EOF or error occurs.
  *
- *  @param fd The file descriptor or socket from which to read.
+ * @param fd  File descriptor to read from.
+ * @param buf Buffer to store data.
+ * @param n   Number of bytes to read.
  *
- *  @param buf The buffer in which to put read data.
- *
- *  @param n The maximum bytes to read.  Must be less than or
- *           equal to the size of buf.
- *
- *  @return The number of bytes read, or -1, indicating an error.
- *          Note: this function treats a timeout as an error.  Sets
- *          errno according to any errors that occur.
+ * @return Number of bytes actually read (0..n) on EOF, or -1 on error.
  */
-ssize_t read_n_bytes(int in, char buf[], size_t n);
+ssize_t read_n_bytes(int fd, void *buf, size_t n);
 
-/** @brief Writes bytes to fd from buf until either (1) it has written
- *         exactly n bytes or (2) it encounters an error on write.
+/**
+ * @brief Write exactly n bytes from buf to fd, unless an error occurs.
  *
- *  @param fd The file descriptor or socket to write to.
+ * @param fd  File descriptor to write to.
+ * @param buf Buffer with data.
+ * @param n   Number of bytes to write.
  *
- *  @param buf The buffer containing data to write.
- *
- *  @param n The number of bytes to write. Must be less than or
- *           equal to the size of buf.
- *
- *  @return The number of bytes written, or -1, indicating an error.
- *          Sets errno according to any errors that occur.
+ * @return Number of bytes actually written (0..n), or -1 on error.
  */
-ssize_t write_n_bytes(int fd, char buf[], size_t n);
+ssize_t write_n_bytes(int fd, const void *buf, size_t n);
 
-/** @brief Reads bytes from src and places them in dst until either
- *         (1) it has read/written exactly n bytes, (2) read returns 0,
- *         or (3) it encounters an error on read/write.
+/**
+ * @brief Reads bytes from src and writes them to dst until either:
+ *        (1) exactly n bytes have been copied,
+ *        (2) read() returns 0 (EOF), or
+ *        (3) an error occurs.
  *
- *  @param src The file descriptor or socket from which to read.
+ * @param src File descriptor to read from.
+ * @param dst File descriptor to write to.
+ * @param n   Maximum number of bytes to copy.
  *
- *  @param dst The file descriptor or socket to write to.
- *
- *  @param n The number of bytes to read/write.
- *
- *  @return The number of bytes written, or -1, indicating an error.
- *          Sets errno according to any errors that occur.
+ * @return Number of bytes written, or -1 on error.
  */
 ssize_t pass_n_bytes(int src, int dst, size_t n);
