@@ -14,7 +14,7 @@
  * @brief Represents a socket listening for incoming connections.
  */
 typedef struct {
-    int fd;  // listening socket file descriptor
+  int fd; // listening socket file descriptor
 } Listener_Socket;
 
 /**
@@ -49,7 +49,8 @@ int listener_accept(Listener_Socket *sock);
  * @param max_bytes  Maximum number of bytes to place in buf (including NUL).
  * @param delim      Delimiter string to search for (e.g. "\r\n\r\n").
  *
- * @return Number of bytes read into buf (excluding NUL) on success, or -1 on error.
+ * @return Number of bytes read into buf (excluding NUL) on success, or -1 on
+ * error.
  */
 ssize_t read_until(int fd, char *buf, size_t max_bytes, const char *delim);
 

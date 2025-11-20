@@ -1,58 +1,59 @@
 /**
- * @File rwlock.h
- *
- * The header file that you need to implement for assignment 3.
- *
- * @author Andrew Quinn, Mitchell Elliott, and Gurpreet Dhillon.
+ * @file rwlock.h
+ * @brief Simple writer-priority reader–writer lock.
  */
 
 #pragma once
 
-#include <stdint.h>
+#include <pthread.h>
 
-/** @struct rwlock_t
+/**
+ * @struct rwlock_t
  *
- *  @brief This typedef renames the struct rwlock.  Your `c` file
- *  should define the variables that you need for your reader/writer
- *  lock.
+ * Opaque type for a writer-priority reader–writer lock.
+ * Implementation details are in rwlock.c.
  */
 typedef struct rwlock rwlock_t;
 
-typedef enum { READERS, WRITERS, N_WAY } PRIORITY;
-
-/** @brief Dynamically allocates and initializes a new rwlock with
- *         priority p, and, if using N_WAY priority, n.
+/**
+ * @brief Allocate and initialize a new reader–writer lock.
  *
- *  @param The priority of the rwlock
+ * Policy: writer-priority.
  *
- *  @param The n value, if using N_WAY priority
- *
- *  @return a pointer to a new rwlock_t
+ * @return Pointer to initialized rwlock_t on success, or NULL on failure.
  */
-rwlock_t *rwlock_new(PRIORITY p, uint32_t n);
+rwlock_t *rwlock_new(void);
 
-/** @brief Delete your rwlock and free all of its memory.
+/**
+ * @brief Destroy and free a reader–writer lock.
  *
- *  @param rw the rwlock to be deleted.  Note, you should assign the
- *  passed in pointer to NULL when returning (i.e., you should set *rw
- *  = NULL after deallocation).
+ * After this call, *rw will be set to NULL.
  */
 void rwlock_delete(rwlock_t **rw);
 
-/** @brief acquire rw for reading
+/**
+ * @brief Acquire the lock for reading.
+ *
+ * Multiple readers may hold the lock concurrently as long as no writer
+ * is active or waiting. If a writer is active or waiting, the reader
+ * will block until it is safe to proceed.
  */
 void reader_lock(rwlock_t *rw);
 
-/** @brief release rw for reading--you can assume that the thread
- * releasing the lock has *already* acquired it for reading.
+/**
+ * @brief Release the lock from reading.
  */
 void reader_unlock(rwlock_t *rw);
 
-/** @brief acquire rw for writing
+/**
+ * @brief Acquire the lock for writing.
+ *
+ * A writer must wait until there are no active readers or writers.
+ * Writers are given priority over new readers.
  */
 void writer_lock(rwlock_t *rw);
 
-/** @brief release rw for writing--you can assume that the thread
- * releasing the lock has *already* acquired it for writing.
+/**
+ * @brief Release the lock from writing.
  */
 void writer_unlock(rwlock_t *rw);
