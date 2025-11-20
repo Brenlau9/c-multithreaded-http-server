@@ -141,5 +141,6 @@ curl -X PUT -H "Content-Length: 3" \
 - Improve documentation and inline comments, especially for concurrency mechanisms and I/O handling.
 - Reorganize the codebase into more focused source files to establish cleaner separation of concerns.
 - Optimize performance-critical routines such as request parsing and file read/write operations.
+- Support for ```DELETE```
 
 
