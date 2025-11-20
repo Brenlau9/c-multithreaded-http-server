@@ -14,7 +14,7 @@ typedef struct rwlock {
   int waiting_writers;
 } rwlock;
 
-rwlock_t *rwlock_new() {
+rwlock_t *rwlock_new(void) {
   rwlock_t *rwlock = calloc(1, sizeof(rwlock_t));
   pthread_mutex_init(&rwlock->mutex, NULL);
   pthread_cond_init(&rwlock->can_read, NULL);
