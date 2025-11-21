@@ -28,6 +28,9 @@ typedef struct {
     FileLockStruct *array;
     int size;
 } FileLockArray;
+
+/* ---------------- File Lock functions ---------------- */
+
 FileLockStruct *newLockArray(int size) {
     FileLockStruct *fl_array = calloc(size, sizeof(FileLockStruct));
     for (int i = 0; i < size; i++) {
@@ -96,8 +99,11 @@ void writer_file_unlock(FileLockStruct *array, char *URI, int size) {
     writer_unlock(array[pos].rwlock);
     remove_fileLock(array, URI, size);
 }
+
 //global file lock array
 FileLockArray fl_array;
+
+/* ---------------- HTTP request handling functions ---------------- */
 
 Request newRequest(void) {
     Request R;
@@ -296,6 +302,9 @@ void response(int socket, Request request, int *status_code, int content_length)
         audit_log(request, status_code);
     }
 }
+
+/* ---------------- Server function ---------------- */
+
 void *server_thread(void *arg) {
     queue_t *request_queue = (queue_t *) arg;
     while (1) {
@@ -354,7 +363,6 @@ void *server_thread(void *arg) {
             garbage_bytes = read(socket, garbage_buf, 2048);
         }
         */
-        fprintf(stderr, "[THREAD] Done handling request, cleaning up\n"); //Debug
         freeRequest(&request);
         free(status_code);
         free(requestBuffer);
@@ -364,6 +372,9 @@ void *server_thread(void *arg) {
         close(socket);
     }
 }
+
+/* ---------------- Command-line argument processing ---------------- */
+
 void process_args(int argc, char **argv, int *num_threads, int *port_number) {
     getopt(argc, argv, "t:");
     if (argc == 4) {
@@ -391,6 +402,9 @@ void process_args(int argc, char **argv, int *num_threads, int *port_number) {
         exit(1);
     }
 }
+
+/* ---------------- Main ---------------- */
+
 int main(int argc, char **argv) {
     int num_threads = 0;
     int port_number = 0;

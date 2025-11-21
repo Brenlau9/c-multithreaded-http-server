@@ -50,3 +50,4 @@ format: $(FORMATS)
 test: $(EXECBIN)
 	./tests/integration/test_cli.sh
 	./tests/integration/test_endpoints.sh
+	./tests/integration/test_concurrency.sh
