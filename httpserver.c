@@ -129,6 +129,9 @@ void freeRequest(Request *pR) {
         if ((*pR)->content_length != NULL) {
             free((*pR)->content_length);
         }
+        if ((*pR)->request_id != NULL) {
+            free((*pR)->request_id);
+        }
         free(*pR);
         *pR = NULL;
     }

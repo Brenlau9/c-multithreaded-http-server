@@ -7,7 +7,6 @@ PORT=8082
 echo "== [concurrency] Cleaning up test files =="
 rm -f shared.txt somefile
 
-# Create a base file for simple concurrent GETs
 echo "hello world" > somefile
 
 echo "== [concurrency] Starting server with 4 threads on port ${PORT} =="
@@ -21,66 +20,78 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Give the server a moment to start
 sleep 1
 
-########################################
-# 1. Simple parallel GETs on somefile  #
-########################################
+###############################################
+# 1. Parallel GETs with unique Request-Id     #
+###############################################
 echo "== [concurrency] Testing parallel GETs on /somefile =="
 
-# 20 parallel GETs using xargs -P for concurrency
-seq 1 20 | xargs -n1 -P8 -I{} curl --max-time 5 -s \
-  "http://127.0.0.1:${PORT}/somefile" > /dev/null
+pids=()
+for i in $(seq 1 20); do
+  curl --max-time 5 -s \
+    -H "Request-Id: ${i}" \
+    "http://127.0.0.1:${PORT}/somefile" > /dev/null &
+  pids+=($!)
+done
 
-echo "== [concurrency] Parallel GETs on /somefile completed =="
+# Wait only for curl PIDs, not the server
+for pid in "${pids[@]}"; do
+  wait "$pid"
+done
 
-########################################
-# 2. Parallel GET + PUT on shared.txt  #
-########################################
-echo "== [concurrency] Testing parallel GETs and PUTs on /shared.txt =="
+echo "== [concurrency] Parallel GETs completed =="
 
-# Launch many PUT requests in the background
+####################################################
+# 2. Parallel GET + PUT on /shared.txt with IDs    #
+####################################################
+echo "== [concurrency] Testing parallel GET/PUT with Request-Id =="
+
+pids=()
+
+# Fire many PUTs (unique IDs)
 for i in $(seq 1 50); do
-  body="version-${i}"
-  # Send the body via stdin so Content-Length is correct
+  body="version-$i"
   echo "${body}" | curl --max-time 5 -s -X PUT \
     -H "Content-Length: ${#body}" \
+    -H "Request-Id: ${i}" \
     --data-binary "@-" \
     "http://127.0.0.1:${PORT}/shared.txt" > /dev/null &
+  pids+=($!)
 done
 
-# At the same time, launch many GET requests in the background
+# Fire many GETs at same time (unique IDs)
 for i in $(seq 1 50); do
   curl --max-time 5 -s \
+    -H "Request-Id: $((1000 + i))" \
     "http://127.0.0.1:${PORT}/shared.txt" > /dev/null &
+  pids+=($!)
 done
 
-# Wait for all background curl jobs to finish
-wait
+# Again, wait only for curl PIDs
+for pid in "${pids[@]}"; do
+  wait "$pid"
+done
 
 echo "== [concurrency] Parallel GET/PUT operations completed =="
 
-########################################
-# 3. Check final state of shared.txt   #
-########################################
-echo "== [concurrency] Verifying final contents of shared.txt =="
-
+####################################################
+# 3. Final content check                           #
+####################################################
 if [ ! -f shared.txt ]; then
-  echo "ERROR: shared.txt was not created by PUT requests."
+  echo "ERROR: shared.txt not created!"
   exit 1
 fi
 
-final_content=$(cat shared.txt)
-echo "Final shared.txt content: '${final_content}'"
+final=$(cat shared.txt)
+echo "Final shared.txt content: '$final'"
 
-# We expect the final content to be one of the 'version-X' strings
-case "${final_content}" in
+case "$final" in
   version-*)
-    echo "== [concurrency] Final content looks valid (version-*). Concurrency test PASSED =="
+    echo "== [concurrency] Final content valid. Test PASSED =="
     ;;
   *)
-    echo "ERROR: Unexpected final content in shared.txt"
+    echo "ERROR: Unexpected content: '$final'"
     exit 1
     ;;
 esac
