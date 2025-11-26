@@ -64,39 +64,46 @@ int listener_accept(Listener_Socket *sock) {
 /* ---------------- Robust I/O helpers ---------------- */
 
 ssize_t read_until(int fd, char *buf, size_t max_bytes, const char *delim) {
-  if (!buf || max_bytes == 0) {
-    errno = EINVAL;
-    return -1;
-  }
-
-  size_t total = 0;
-  buf[0] = '\0';
-
-  size_t delim_len = strlen(delim);
-
-  while (total < max_bytes - 1) {
-    ssize_t n = read(fd, buf + total, (max_bytes - 1) - total);
-    if (n < 0) {
-      if (errno == EINTR) {
-        continue;
-      }
-      return -1;
-    }
-    if (n == 0) {
-      // EOF
-      break;
+    if (!buf || max_bytes == 0) {
+        errno = EINVAL;
+        return -1;
     }
 
-    total += (size_t)n;
-    buf[total] = '\0';
+    size_t total = 0;
+    size_t delim_len = strlen(delim);
 
-    if (delim_len > 0 && strstr(buf, delim) != NULL) {
-      break;
+    buf[0] = '\0';
+
+    // Read *one byte at a time* to avoid reading past the delimiter
+    while (total < max_bytes - 1) {
+        char c;
+        ssize_t n = read(fd, &c, 1);
+
+        if (n < 0) {
+            if (errno == EINTR)
+                continue;   // Retry on signal
+            return -1;      // Real read error
+        }
+
+        if (n == 0) {
+            // EOF — return what we have
+            break;
+        }
+
+        buf[total++] = c;
+        buf[total] = '\0';
+
+        // Stop when delimiter appears
+        if (delim_len > 0 && total >= delim_len) {
+            if (strstr(buf, delim) != NULL) {
+                break;
+            }
+        }
     }
-  }
 
-  return (ssize_t)total;
+    return (ssize_t) total;
 }
+
 
 ssize_t read_n_bytes(int fd, void *vbuf, size_t n) {
   unsigned char *buf = vbuf;
