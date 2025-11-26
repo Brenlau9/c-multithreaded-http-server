@@ -1,0 +1,60 @@
+# ================================
+# Build Artifacts
+# ================================
+*.o
+*.a
+*.so
+*.out
+*.log
+*.tmp
+
+# The compiled server binary
+httpserver
+
+# ================================
+# Test Artifacts
+# ================================
+somefile
+shared.txt
+put_testfile
+*.pid
+*.dump
+
+# ================================
+# Editor / OS Junk Files
+# ================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Vim / Emacs
+*~
+*.swp
+*.swo
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# ================================
+# Dev Containers / Docker
+# ================================
+.devcontainer/
+*.devcontainer
+docker-compose.override.yml
+docker-compose.local.yml
+
+# Ignore container build cache
+**/.cache/
+**/.pytest_cache/
+
+# ================================
+# Git / Repo Cleanliness
+# ================================
+# Ignore any core dumps
+core
+core.*
+
+# Ignore compiled test shells
+tests/**/*.sh~
