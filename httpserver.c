@@ -29,6 +29,8 @@ typedef struct {
     int size;
 } FileLockArray;
 
+static pthread_mutex_t fl_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 /* ---------------- File Lock functions ---------------- */
 
 FileLockStruct *newLockArray(int size) {
@@ -42,7 +44,7 @@ FileLockStruct *newLockArray(int size) {
 }
 int find_emptyPos(FileLockStruct *array, int size) {
     for (int i = 0; i < size; i++) {
-        if (array[i].count == 0) {
+        if (array[i].count == 0 && array[i].URI == NULL) {
             return i;
         }
     }
@@ -62,6 +64,11 @@ int add_fileLock(FileLockStruct *array, char *URI, int size) {
         array[pos].count++;
     } else {
         pos = find_emptyPos(array, size);
+        if (pos == -1) {
+        // No space left: this is a “should never happen” for your assignment-sized array.
+        fprintf(stderr, "FileLock array full, cannot create lock for %s\n", URI);
+        exit(1);
+        }
         array[pos].count++;
         array[pos].URI = calloc(strlen(URI) + 1, sizeof(char)); // +1 to include termination byte
         strcpy(array[pos].URI, URI);
@@ -82,22 +89,48 @@ void remove_fileLock(FileLockStruct *array, char *URI, int size) {
     }
 }
 void reader_file_lock(FileLockStruct *array, char *URI, int size) {
+    pthread_mutex_lock(&fl_mutex);
     int pos = add_fileLock(array, URI, size);
-    reader_lock(array[pos].rwlock);
+    rwlock_t *lock = array[pos].rwlock;
+    pthread_mutex_unlock(&fl_mutex);
+
+    reader_lock(lock);
 }
 void reader_file_unlock(FileLockStruct *array, char *URI, int size) {
+    pthread_mutex_lock(&fl_mutex);
     int pos = find_filePos(array, URI, size);
-    reader_unlock(array[pos].rwlock);
+    if (pos == -1) {
+        pthread_mutex_unlock(&fl_mutex);
+        fprintf(stderr, "Fatal error: reader_file_unlock for unknown URI %s\n", URI);
+        exit(1);
+    }
+    rwlock_t *lock = array[pos].rwlock;
     remove_fileLock(array, URI, size);
+    pthread_mutex_unlock(&fl_mutex);
+
+    reader_unlock(lock);
 }
 void writer_file_lock(FileLockStruct *array, char *URI, int size) {
+    pthread_mutex_lock(&fl_mutex);
     int pos = add_fileLock(array, URI, size);
-    writer_lock(array[pos].rwlock);
+    rwlock_t *lock = array[pos].rwlock;
+    pthread_mutex_unlock(&fl_mutex);
+
+    writer_lock(lock);
 }
 void writer_file_unlock(FileLockStruct *array, char *URI, int size) {
+    pthread_mutex_lock(&fl_mutex);
     int pos = find_filePos(array, URI, size);
-    writer_unlock(array[pos].rwlock);
+    if (pos == -1) {
+        pthread_mutex_unlock(&fl_mutex);
+        fprintf(stderr, "Fatal error: writer_file_unlock for unknown URI %s\n", URI);
+        exit(1);
+    }
+    rwlock_t *lock = array[pos].rwlock;
     remove_fileLock(array, URI, size);
+    pthread_mutex_unlock(&fl_mutex);
+
+    writer_unlock(lock);
 }
 
 //global file lock array
