@@ -1,6 +1,7 @@
 {
     "files.associations": {
         "in.h": "c",
-        "stddef.h": "c"
+        "stddef.h": "c",
+        "stdlib.h": "c"
     }
 }

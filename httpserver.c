@@ -11,14 +11,13 @@
 #include <string.h>
 #include <unistd.h>
 
-typedef struct RequestObj *Request;
-typedef struct RequestObj {
+typedef struct http_request {
   char *method;
   char *URI;
   char *version;
   char *content_length;
   char *request_id;
-} RequestObj;
+} http_request_t;
 
 typedef struct file_lock_entry {
   rwlock_t *rwlock;
@@ -151,40 +150,32 @@ file_lock_table fl_array;
 
 /* ---------------- HTTP request parsing and handling ---------------- */
 
-Request newRequest(void) {
-  Request R;
-  R = malloc(sizeof(RequestObj));
-  R->method = NULL;
-  R->URI = NULL;
-  R->version = NULL;
-  R->content_length = NULL;
-  R->request_id = NULL;
-  return (R);
+http_request_t *http_request_new(void) {
+  http_request_t *req = malloc(sizeof(http_request_t));
+  req->method = NULL;
+  req->URI = NULL;
+  req->version = NULL;
+  req->content_length = NULL;
+  req->request_id = NULL;
+  return (req);
 }
 
-void freeRequest(Request *pR) {
-  if (pR != NULL && *pR != NULL) {
-    if ((*pR)->method != NULL) {
-      free((*pR)->method);
-    }
-    if ((*pR)->URI != NULL) {
-      free((*pR)->URI);
-    }
-    if ((*pR)->version != NULL) {
-      free((*pR)->version);
-    }
-    if ((*pR)->content_length != NULL) {
-      free((*pR)->content_length);
-    }
-    if ((*pR)->request_id != NULL) {
-      free((*pR)->request_id);
-    }
-    free(*pR);
-    *pR = NULL;
-  }
+void http_request_free(http_request_t **preq) {
+  if (preq == NULL || *preq == NULL) return;
+
+    http_request_t *req = *preq;
+
+    free(req->method);
+    free(req->URI);
+    free(req->version);
+    free(req->content_length);
+    free(req->request_id);
+
+    free(req);
+    *preq = NULL;
 }
 
-ssize_t parse_request_line(char *requestBuffer, Request request, int *status_code) {
+ssize_t parse_request_line(char *requestBuffer, http_request_t *request, int *status_code) {
   const char *re = "^([a-zA-Z]{1,8}) (/[a-zA-Z0-9._-]{1,63}) "
                    "(HTTP/[0-9]\\.[0-9])\r\n(.|\n)*$";
   regex_t regex;
@@ -237,7 +228,7 @@ void buffer_shift_left(char *buf, ssize_t max_size, ssize_t shift) {
  * On success, stores the length string in request->content_length and
  * shifts headerBuffer so that it starts at the message body.
  */
-void parse_content_length(char *headerBuffer, Request request, int *status_code) {
+void parse_content_length(char *headerBuffer, http_request_t *request, int *status_code) {
   char *cl_pointer = strstr(headerBuffer, "Content-Length: ");
   int content_length = 0;
   if (cl_pointer != NULL) {
@@ -260,7 +251,7 @@ void parse_content_length(char *headerBuffer, Request request, int *status_code)
  * parse_request_id - parse Request-Id header (if present) into request->request_id.
  * Missing header is treated as ID 0.
  */
-void parse_request_id(char *headerBuffer, Request request) {
+void parse_request_id(char *headerBuffer, http_request_t *request) {
   char *cl_pointer = strstr(headerBuffer, "Request-Id: ");
   int request_id = 0;
   if (cl_pointer != NULL) {
@@ -276,7 +267,7 @@ void parse_request_id(char *headerBuffer, Request request) {
  * handle_get - validate a GET request target and return file length.
  * Returns file length on success, -1 on error (status_code set accordingly).
  */
-int handle_get(Request request, int *status_code) {
+int handle_get(http_request_t *request, int *status_code) {
   if (strcmp(request->version, "HTTP/1.1") != 0) {
     *status_code = 505;
     return -1;
@@ -307,7 +298,7 @@ int handle_get(Request request, int *status_code) {
  * Writes any bytes already in messageBuffer, then streams the rest from socket.
  * Returns 0 on success, -1 on error (status_code set accordingly).
  */
-int handle_put(char *messageBuffer, int socket, Request request,
+int handle_put(char *messageBuffer, int socket, http_request_t *request,
                int *status_code) {
   if (strcmp(request->version, "HTTP/1.1") != 0) {
     *status_code = 505;
@@ -354,7 +345,7 @@ int buffer_is_empty(char *messageBuffer) {
  * log_audit_entry - log request outcome to stderr in CSV format:
  *   METHOD,URI,STATUS_CODE,REQUEST_ID
  */
-void log_audit_entry(Request request, int *status_code) {
+void log_audit_entry(http_request_t *request, int *status_code) {
   fprintf(stderr, "%s,%s,%d,%s\n", request->method, request->URI, *status_code,
           request->request_id);
 }
@@ -364,7 +355,7 @@ void log_audit_entry(Request request, int *status_code) {
  * For GET + 200, streams file contents after headers.
  * For other cases, sends a short text body with the status phrase.
  */
-void send_response(int socket, Request request, int *status_code,
+void send_response(int socket, http_request_t *request, int *status_code,
               int content_length) {
   char response[2048];
 
@@ -449,7 +440,7 @@ void *worker_thread(void *arg) {
     // Read request line and headers (up to the blank line).
     read_until(socket, requestBuffer, 2048, "\r\n\r\n");
 
-    Request request = newRequest();
+    http_request_t *request = http_request_new();
     int request_bytes = parse_request_line(requestBuffer, request, status_code);
 
     if (request_bytes == -1) {
@@ -506,7 +497,7 @@ void *worker_thread(void *arg) {
      * }
      */
 
-    freeRequest(&request);
+    http_request_free(&request);
     free(status_code);
     free(requestBuffer);
     free(headerBuffer);
