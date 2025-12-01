@@ -13,7 +13,7 @@
 
 typedef struct http_request {
   char *method;
-  char *URI;
+  char *uri;
   char *version;
   char *content_length;
   char *request_id;
@@ -21,7 +21,7 @@ typedef struct http_request {
 
 typedef struct file_lock_entry {
   rwlock_t *rwlock;
-  char *URI;
+  char *uri;
   int count;
 } file_lock_entry;
 
@@ -38,7 +38,7 @@ file_lock_entry *file_lock_table_init(int size) {
   file_lock_entry *fl_array = calloc(size, sizeof(file_lock_entry));
   for (int i = 0; i < size; i++) {
     fl_array[i].rwlock = rwlock_new();
-    fl_array[i].URI = NULL;
+    fl_array[i].uri = NULL;
     fl_array[i].count = 0;
   }
   return fl_array;
@@ -46,47 +46,47 @@ file_lock_entry *file_lock_table_init(int size) {
 
 int file_lock_find_empty(file_lock_entry *array, int size) {
   for (int i = 0; i < size; i++) {
-    if (array[i].count == 0 && array[i].URI == NULL) {
+    if (array[i].count == 0 && array[i].uri == NULL) {
       return i;
     }
   }
   return -1;
 }
 
-int file_lock_find(file_lock_entry *array, char *URI, int size) {
+int file_lock_find(file_lock_entry *array, char *uri, int size) {
   for (int i = 0; i < size; i++) {
-    if (array[i].URI != NULL && strcmp(array[i].URI, URI) == 0) {
+    if (array[i].uri != NULL && strcmp(array[i].uri, uri) == 0) {
       return i;
     }
   }
   return -1;
 }
 
-int file_lock_acquire_ref(file_lock_entry *array, char *URI, int size) {
-  int pos = file_lock_find(array, URI, size);
+int file_lock_acquire_ref(file_lock_entry *array, char *uri, int size) {
+  int pos = file_lock_find(array, uri, size);
   if (pos != -1) {
     array[pos].count++;
   } else {
     pos = file_lock_find_empty(array, size);
     if (pos == -1) {
       // File lock array is full; with current sizing this should not occur.
-      fprintf(stderr, "FileLock array full, cannot create lock for %s\n", URI);
+      fprintf(stderr, "FileLock array full, cannot create lock for %s\n", uri);
       exit(1);
     }
     array[pos].count++;
-    array[pos].URI = calloc(strlen(URI) + 1, sizeof(char));
-    strcpy(array[pos].URI, URI);
+    array[pos].uri = calloc(strlen(uri) + 1, sizeof(char));
+    strcpy(array[pos].uri, uri);
   }
   return pos;
 }
 
-void file_lock_release_ref(file_lock_entry *array, char *URI, int size) {
-  int pos = file_lock_find(array, URI, size);
+void file_lock_release_ref(file_lock_entry *array, char *uri, int size) {
+  int pos = file_lock_find(array, uri, size);
   if (pos != -1) {
     array[pos].count--;
     if (array[pos].count == 0) {
-      free(array[pos].URI);
-      array[pos].URI = NULL;
+      free(array[pos].uri);
+      array[pos].uri = NULL;
     }
   } else {
     fprintf(stderr, "Fatal error: Can't remove nonexistent file lock.\n");
@@ -94,51 +94,51 @@ void file_lock_release_ref(file_lock_entry *array, char *URI, int size) {
   }
 }
 
-void file_lock_read_lock(file_lock_entry *array, char *URI, int size) {
+void file_lock_read_lock(file_lock_entry *array, char *uri, int size) {
   pthread_mutex_lock(&fl_mutex);
-  int pos = file_lock_acquire_ref(array, URI, size);
+  int pos = file_lock_acquire_ref(array, uri, size);
   rwlock_t *lock = array[pos].rwlock;
   pthread_mutex_unlock(&fl_mutex);
 
   reader_lock(lock);
 }
 
-void file_lock_read_unlock(file_lock_entry *array, char *URI, int size) {
+void file_lock_read_unlock(file_lock_entry *array, char *uri, int size) {
   pthread_mutex_lock(&fl_mutex);
-  int pos = file_lock_find(array, URI, size);
+  int pos = file_lock_find(array, uri, size);
   if (pos == -1) {
     pthread_mutex_unlock(&fl_mutex);
-    fprintf(stderr, "Fatal error: file_lock_read_unlock for unknown URI %s\n",
-            URI);
+    fprintf(stderr, "Fatal error: file_lock_read_unlock for unknown uri %s\n",
+            uri);
     exit(1);
   }
   rwlock_t *lock = array[pos].rwlock;
-  file_lock_release_ref(array, URI, size);
+  file_lock_release_ref(array, uri, size);
   pthread_mutex_unlock(&fl_mutex);
 
   reader_unlock(lock);
 }
 
-void file_lock_write_lock(file_lock_entry *array, char *URI, int size) {
+void file_lock_write_lock(file_lock_entry *array, char *uri, int size) {
   pthread_mutex_lock(&fl_mutex);
-  int pos = file_lock_acquire_ref(array, URI, size);
+  int pos = file_lock_acquire_ref(array, uri, size);
   rwlock_t *lock = array[pos].rwlock;
   pthread_mutex_unlock(&fl_mutex);
 
   writer_lock(lock);
 }
 
-void file_lock_write_unlock(file_lock_entry *array, char *URI, int size) {
+void file_lock_write_unlock(file_lock_entry *array, char *uri, int size) {
   pthread_mutex_lock(&fl_mutex);
-  int pos = file_lock_find(array, URI, size);
+  int pos = file_lock_find(array, uri, size);
   if (pos == -1) {
     pthread_mutex_unlock(&fl_mutex);
-    fprintf(stderr, "Fatal error: file_lock_write_unlock for unknown URI %s\n",
-            URI);
+    fprintf(stderr, "Fatal error: file_lock_write_unlock for unknown uri %s\n",
+            uri);
     exit(1);
   }
   rwlock_t *lock = array[pos].rwlock;
-  file_lock_release_ref(array, URI, size);
+  file_lock_release_ref(array, uri, size);
   pthread_mutex_unlock(&fl_mutex);
 
   writer_unlock(lock);
@@ -153,7 +153,7 @@ file_lock_table fl_array;
 http_request_t *http_request_new(void) {
   http_request_t *req = malloc(sizeof(http_request_t));
   req->method = NULL;
-  req->URI = NULL;
+  req->uri = NULL;
   req->version = NULL;
   req->content_length = NULL;
   req->request_id = NULL;
@@ -166,7 +166,7 @@ void http_request_free(http_request_t **preq) {
     http_request_t *req = *preq;
 
     free(req->method);
-    free(req->URI);
+    free(req->uri);
     free(req->version);
     free(req->content_length);
     free(req->request_id);
@@ -193,18 +193,18 @@ ssize_t parse_request_line(char *requestBuffer, http_request_t *request, int *st
   }
 
   request->method = calloc(pmatch[1].rm_eo - pmatch[1].rm_so + 1, sizeof(char));
-  request->URI = calloc(pmatch[2].rm_eo - pmatch[2].rm_so + 1, sizeof(char));
+  request->uri = calloc(pmatch[2].rm_eo - pmatch[2].rm_so + 1, sizeof(char));
   request->version =
       calloc(pmatch[3].rm_eo - pmatch[3].rm_so + 1, sizeof(char));
 
   strncpy(request->method, requestBuffer + pmatch[1].rm_so,
           pmatch[1].rm_eo - pmatch[1].rm_so);
-  strncpy(request->URI, requestBuffer + pmatch[2].rm_so + 1,
+  strncpy(request->uri, requestBuffer + pmatch[2].rm_so + 1,
           pmatch[2].rm_eo - pmatch[2].rm_so - 1);
   strncpy(request->version, requestBuffer + pmatch[3].rm_so,
           pmatch[3].rm_eo - pmatch[3].rm_so);
 
-  ssize_t request_bytes = strlen(request->method) + strlen(request->URI) +
+  ssize_t request_bytes = strlen(request->method) + strlen(request->uri) +
                           strlen(request->version) + 3 + 2;
   regfree(&regex);
 
@@ -272,7 +272,7 @@ int handle_get(http_request_t *request, int *status_code) {
     *status_code = 505;
     return -1;
   }
-  int fd = open(request->URI, O_RDONLY);
+  int fd = open(request->uri, O_RDONLY);
   if (fd == -1) {
     *status_code = 404;
     return -1;
@@ -306,10 +306,10 @@ int handle_put(char *messageBuffer, int socket, http_request_t *request,
   }
 
   *status_code = 200;
-  int fd = open(request->URI, O_WRONLY | O_TRUNC, 0);
+  int fd = open(request->uri, O_WRONLY | O_TRUNC, 0);
   if (fd == -1) {
     *status_code = 201;
-    fd = creat(request->URI, 0666);
+    fd = creat(request->uri, 0666);
     if (fd == -1) {
       *status_code = 500;
       return -1;
@@ -346,7 +346,7 @@ int buffer_is_empty(char *messageBuffer) {
  *   METHOD,URI,STATUS_CODE,REQUEST_ID
  */
 void log_audit_entry(http_request_t *request, int *status_code) {
-  fprintf(stderr, "%s,%s,%d,%s\n", request->method, request->URI, *status_code,
+  fprintf(stderr, "%s,%s,%d,%s\n", request->method, request->uri, *status_code,
           request->request_id);
 }
 
@@ -401,7 +401,7 @@ void send_response(int socket, http_request_t *request, int *status_code,
         "HTTP/1.1 ", sc_string, status_phrase, content_length);
     write_n_bytes(socket, response, response_length);
 
-    int fd = open(request->URI, O_RDONLY, 0);
+    int fd = open(request->uri, O_RDONLY, 0);
     pass_n_bytes(fd, socket, content_length);
     close(fd);
 
@@ -464,20 +464,20 @@ void *worker_thread(void *arg) {
 
       if (strcmp(request->method, "GET") == 0) {
         if (buffer_is_empty(messageBuffer) == 1) {
-          file_lock_read_lock(fl_array.array, request->URI, fl_array.size);
+          file_lock_read_lock(fl_array.array, request->uri, fl_array.size);
           int file_length = handle_get(request, status_code);
           send_response(socket, request, status_code, file_length);
-          file_lock_read_unlock(fl_array.array, request->URI, fl_array.size);
+          file_lock_read_unlock(fl_array.array, request->uri, fl_array.size);
         } else {
           // GET requests must not include a body.
           *status_code = 400;
           send_response(socket, request, status_code, -1);
         }
       } else if (strcmp(request->method, "PUT") == 0) {
-        file_lock_write_lock(fl_array.array, request->URI, fl_array.size);
+        file_lock_write_lock(fl_array.array, request->uri, fl_array.size);
         handle_put(messageBuffer, socket, request, status_code);
         send_response(socket, request, status_code, -1);
-        file_lock_write_unlock(fl_array.array, request->URI, fl_array.size);
+        file_lock_write_unlock(fl_array.array, request->uri, fl_array.size);
       } else {
         // Method not supported.
         *status_code = 501;
