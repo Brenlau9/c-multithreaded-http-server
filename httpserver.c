@@ -20,23 +20,23 @@ typedef struct RequestObj {
   char *request_id;
 } RequestObj;
 
-typedef struct FileLockStruct {
+typedef struct file_lock_entry {
   rwlock_t *rwlock;
   char *URI;
   int count;
-} FileLockStruct;
+} file_lock_entry;
 
 typedef struct {
-  FileLockStruct *array;
+  file_lock_entry *array;
   int size;
-} FileLockArray;
+} file_lock_table;
 
 static pthread_mutex_t fl_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 /* ---------------- File lock management ---------------- */
 
-FileLockStruct *newLockArray(int size) {
-  FileLockStruct *fl_array = calloc(size, sizeof(FileLockStruct));
+file_lock_entry *file_lock_table_init(int size) {
+  file_lock_entry *fl_array = calloc(size, sizeof(file_lock_entry));
   for (int i = 0; i < size; i++) {
     fl_array[i].rwlock = rwlock_new();
     fl_array[i].URI = NULL;
@@ -45,7 +45,7 @@ FileLockStruct *newLockArray(int size) {
   return fl_array;
 }
 
-int find_emptyPos(FileLockStruct *array, int size) {
+int file_lock_find_empty(file_lock_entry *array, int size) {
   for (int i = 0; i < size; i++) {
     if (array[i].count == 0 && array[i].URI == NULL) {
       return i;
@@ -54,7 +54,7 @@ int find_emptyPos(FileLockStruct *array, int size) {
   return -1;
 }
 
-int find_filePos(FileLockStruct *array, char *URI, int size) {
+int file_lock_find(file_lock_entry *array, char *URI, int size) {
   for (int i = 0; i < size; i++) {
     if (array[i].URI != NULL && strcmp(array[i].URI, URI) == 0) {
       return i;
@@ -63,12 +63,12 @@ int find_filePos(FileLockStruct *array, char *URI, int size) {
   return -1;
 }
 
-int add_fileLock(FileLockStruct *array, char *URI, int size) {
-  int pos = find_filePos(array, URI, size);
+int file_lock_acquire_ref(file_lock_entry *array, char *URI, int size) {
+  int pos = file_lock_find(array, URI, size);
   if (pos != -1) {
     array[pos].count++;
   } else {
-    pos = find_emptyPos(array, size);
+    pos = file_lock_find_empty(array, size);
     if (pos == -1) {
       // File lock array is full; with current sizing this should not occur.
       fprintf(stderr, "FileLock array full, cannot create lock for %s\n", URI);
@@ -81,8 +81,8 @@ int add_fileLock(FileLockStruct *array, char *URI, int size) {
   return pos;
 }
 
-void remove_fileLock(FileLockStruct *array, char *URI, int size) {
-  int pos = find_filePos(array, URI, size);
+void file_lock_release_ref(file_lock_entry *array, char *URI, int size) {
+  int pos = file_lock_find(array, URI, size);
   if (pos != -1) {
     array[pos].count--;
     if (array[pos].count == 0) {
@@ -95,51 +95,51 @@ void remove_fileLock(FileLockStruct *array, char *URI, int size) {
   }
 }
 
-void reader_file_lock(FileLockStruct *array, char *URI, int size) {
+void file_lock_read_lock(file_lock_entry *array, char *URI, int size) {
   pthread_mutex_lock(&fl_mutex);
-  int pos = add_fileLock(array, URI, size);
+  int pos = file_lock_acquire_ref(array, URI, size);
   rwlock_t *lock = array[pos].rwlock;
   pthread_mutex_unlock(&fl_mutex);
 
   reader_lock(lock);
 }
 
-void reader_file_unlock(FileLockStruct *array, char *URI, int size) {
+void file_lock_read_unlock(file_lock_entry *array, char *URI, int size) {
   pthread_mutex_lock(&fl_mutex);
-  int pos = find_filePos(array, URI, size);
+  int pos = file_lock_find(array, URI, size);
   if (pos == -1) {
     pthread_mutex_unlock(&fl_mutex);
-    fprintf(stderr, "Fatal error: reader_file_unlock for unknown URI %s\n",
+    fprintf(stderr, "Fatal error: file_lock_read_unlock for unknown URI %s\n",
             URI);
     exit(1);
   }
   rwlock_t *lock = array[pos].rwlock;
-  remove_fileLock(array, URI, size);
+  file_lock_release_ref(array, URI, size);
   pthread_mutex_unlock(&fl_mutex);
 
   reader_unlock(lock);
 }
 
-void writer_file_lock(FileLockStruct *array, char *URI, int size) {
+void file_lock_write_lock(file_lock_entry *array, char *URI, int size) {
   pthread_mutex_lock(&fl_mutex);
-  int pos = add_fileLock(array, URI, size);
+  int pos = file_lock_acquire_ref(array, URI, size);
   rwlock_t *lock = array[pos].rwlock;
   pthread_mutex_unlock(&fl_mutex);
 
   writer_lock(lock);
 }
 
-void writer_file_unlock(FileLockStruct *array, char *URI, int size) {
+void file_lock_write_unlock(file_lock_entry *array, char *URI, int size) {
   pthread_mutex_lock(&fl_mutex);
-  int pos = find_filePos(array, URI, size);
+  int pos = file_lock_find(array, URI, size);
   if (pos == -1) {
     pthread_mutex_unlock(&fl_mutex);
-    fprintf(stderr, "Fatal error: writer_file_unlock for unknown URI %s\n",
+    fprintf(stderr, "Fatal error: file_lock_write_unlock for unknown URI %s\n",
             URI);
     exit(1);
   }
   rwlock_t *lock = array[pos].rwlock;
-  remove_fileLock(array, URI, size);
+  file_lock_release_ref(array, URI, size);
   pthread_mutex_unlock(&fl_mutex);
 
   writer_unlock(lock);
@@ -147,7 +147,7 @@ void writer_file_unlock(FileLockStruct *array, char *URI, int size) {
 
 /* Global file lock array (one rwlock per URI, reused via reference counting).
  */
-FileLockArray fl_array;
+file_lock_table fl_array;
 
 /* ---------------- HTTP request parsing and handling ---------------- */
 
@@ -184,7 +184,7 @@ void freeRequest(Request *pR) {
   }
 }
 
-ssize_t parseRequest(char *requestBuffer, Request request, int *status_code) {
+ssize_t parse_request_line(char *requestBuffer, Request request, int *status_code) {
   const char *re = "^([a-zA-Z]{1,8}) (/[a-zA-Z0-9._-]{1,63}) "
                    "(HTTP/[0-9]\\.[0-9])\r\n(.|\n)*$";
   regex_t regex;
@@ -221,10 +221,10 @@ ssize_t parseRequest(char *requestBuffer, Request request, int *status_code) {
 }
 
 /*
- * shiftBuffer - shift the contents of buf left by `shift` bytes.
+ * buffer_shift_left - shift the contents of buf left by `shift` bytes.
  * The first `shift` bytes are discarded; the remaining data is compacted.
  */
-void shiftBuffer(char *buf, ssize_t max_size, ssize_t shift) {
+void buffer_shift_left(char *buf, ssize_t max_size, ssize_t shift) {
   ssize_t remaining_bytes = max_size - shift;
   char tempbuf[remaining_bytes];
   memcpy(tempbuf, buf + shift, remaining_bytes);
@@ -233,11 +233,11 @@ void shiftBuffer(char *buf, ssize_t max_size, ssize_t shift) {
 }
 
 /*
- * getContentLength - parse Content-Length header and trim header bytes.
+ * parse_content_length - parse Content-Length header and trim header bytes.
  * On success, stores the length string in request->content_length and
  * shifts headerBuffer so that it starts at the message body.
  */
-void getContentLength(char *headerBuffer, Request request, int *status_code) {
+void parse_content_length(char *headerBuffer, Request request, int *status_code) {
   char *cl_pointer = strstr(headerBuffer, "Content-Length: ");
   int content_length = 0;
   if (cl_pointer != NULL) {
@@ -252,15 +252,15 @@ void getContentLength(char *headerBuffer, Request request, int *status_code) {
   if (newline_pointer == NULL) {
     *status_code = 500;
   } else {
-    shiftBuffer(headerBuffer, 2048, newline_pointer - headerBuffer + 4);
+ buffer_shift_left(headerBuffer, 2048, newline_pointer - headerBuffer + 4);
   }
 }
 
 /*
- * getRequestID - parse Request-Id header (if present) into request->request_id.
+ * parse_request_id - parse Request-Id header (if present) into request->request_id.
  * Missing header is treated as ID 0.
  */
-void getRequestID(char *headerBuffer, Request request) {
+void parse_request_id(char *headerBuffer, Request request) {
   char *cl_pointer = strstr(headerBuffer, "Request-Id: ");
   int request_id = 0;
   if (cl_pointer != NULL) {
@@ -273,10 +273,10 @@ void getRequestID(char *headerBuffer, Request request) {
 }
 
 /*
- * getRequest - validate a GET request target and return file length.
+ * handle_get - validate a GET request target and return file length.
  * Returns file length on success, -1 on error (status_code set accordingly).
  */
-int getRequest(Request request, int *status_code) {
+int handle_get(Request request, int *status_code) {
   if (strcmp(request->version, "HTTP/1.1") != 0) {
     *status_code = 505;
     return -1;
@@ -303,11 +303,11 @@ int getRequest(Request request, int *status_code) {
 }
 
 /*
- * putRequest - handle PUT request body write.
+ * handle_put - handle PUT request body write.
  * Writes any bytes already in messageBuffer, then streams the rest from socket.
  * Returns 0 on success, -1 on error (status_code set accordingly).
  */
-int putRequest(char *messageBuffer, int socket, Request request,
+int handle_put(char *messageBuffer, int socket, Request request,
                int *status_code) {
   if (strcmp(request->version, "HTTP/1.1") != 0) {
     *status_code = 505;
@@ -338,10 +338,10 @@ int putRequest(char *messageBuffer, int socket, Request request,
 }
 
 /*
- * messagebufEmpty - check if buffer contains only zero bytes.
+ * buffer_is_empty - check if buffer contains only zero bytes.
  * Returns 1 if empty, 0 otherwise.
  */
-int messagebufEmpty(char *messageBuffer) {
+int buffer_is_empty(char *messageBuffer) {
   for (size_t i = 0; i < 2048; i++) {
     if (messageBuffer[i] != 0) {
       return 0;
@@ -351,10 +351,10 @@ int messagebufEmpty(char *messageBuffer) {
 }
 
 /*
- * audit_log - log request outcome to stderr in CSV format:
+ * log_audit_entry - log request outcome to stderr in CSV format:
  *   METHOD,URI,STATUS_CODE,REQUEST_ID
  */
-void audit_log(Request request, int *status_code) {
+void log_audit_entry(Request request, int *status_code) {
   fprintf(stderr, "%s,%s,%d,%s\n", request->method, request->URI, *status_code,
           request->request_id);
 }
@@ -364,7 +364,7 @@ void audit_log(Request request, int *status_code) {
  * For GET + 200, streams file contents after headers.
  * For other cases, sends a short text body with the status phrase.
  */
-void response(int socket, Request request, int *status_code,
+void send_response(int socket, Request request, int *status_code,
               int content_length) {
   char response[2048];
 
@@ -414,25 +414,25 @@ void response(int socket, Request request, int *status_code,
     pass_n_bytes(fd, socket, content_length);
     close(fd);
 
-    audit_log(request, status_code);
+    log_audit_entry(request, status_code);
   } else {
     // Send headers + short body containing the status phrase.
     response_length = snprintf(
         response, sizeof(response), "%s%s%s\r\nContent-Length: %d\r\n\r\n%s\n",
         "HTTP/1.1 ", sc_string, status_phrase, content_length, status_phrase);
     write_n_bytes(socket, response, response_length);
-    audit_log(request, status_code);
+    log_audit_entry(request, status_code);
   }
 }
 
 /* ---------------- Server thread ---------------- */
 
 /*
- * server_thread - worker loop.
+ * worker_thread - worker loop.
  * Each thread pulls a socket fd from the queue, serves exactly one request,
  * and then closes the connection.
  */
-void *server_thread(void *arg) {
+void *worker_thread(void *arg) {
   queue_t *request_queue = (queue_t *)arg;
 
   while (1) {
@@ -450,7 +450,7 @@ void *server_thread(void *arg) {
     read_until(socket, requestBuffer, 2048, "\r\n\r\n");
 
     Request request = newRequest();
-    int request_bytes = parseRequest(requestBuffer, request, status_code);
+    int request_bytes = parse_request_line(requestBuffer, request, status_code);
 
     if (request_bytes == -1) {
       // Invalid request line: synthesize minimal request for error response.
@@ -458,39 +458,39 @@ void *server_thread(void *arg) {
       strcpy(request->method, "NONE");
       request->version = calloc(8, sizeof(char));
       strcpy(request->version, "HTTP/1.1");
-      response(socket, request, status_code, -1);
+      send_response(socket, request, status_code, -1);
     } else {
       // Shift buffer to drop the request line and keep header bytes.
-      shiftBuffer(requestBuffer, 2048, request_bytes);
+     buffer_shift_left(requestBuffer, 2048, request_bytes);
       memcpy(headerBuffer, requestBuffer, 2048);
       memcpy(headerBufferCopy, headerBuffer, 2048);
 
-      getContentLength(headerBuffer, request, status_code);
-      getRequestID(headerBufferCopy, request);
+      parse_content_length(headerBuffer, request, status_code);
+      parse_request_id(headerBufferCopy, request);
 
-      // After getContentLength, headerBuffer now starts at the message body.
+      // After parse_content_length, headerBuffer now starts at the message body.
       memcpy(messageBuffer, headerBuffer, 2048);
 
       if (strcmp(request->method, "GET") == 0) {
-        if (messagebufEmpty(messageBuffer) == 1) {
-          reader_file_lock(fl_array.array, request->URI, fl_array.size);
-          int file_length = getRequest(request, status_code);
-          response(socket, request, status_code, file_length);
-          reader_file_unlock(fl_array.array, request->URI, fl_array.size);
+        if (buffer_is_empty(messageBuffer) == 1) {
+          file_lock_read_lock(fl_array.array, request->URI, fl_array.size);
+          int file_length = handle_get(request, status_code);
+          send_response(socket, request, status_code, file_length);
+          file_lock_read_unlock(fl_array.array, request->URI, fl_array.size);
         } else {
           // GET requests must not include a body.
           *status_code = 400;
-          response(socket, request, status_code, -1);
+          send_response(socket, request, status_code, -1);
         }
       } else if (strcmp(request->method, "PUT") == 0) {
-        writer_file_lock(fl_array.array, request->URI, fl_array.size);
-        putRequest(messageBuffer, socket, request, status_code);
-        response(socket, request, status_code, -1);
-        writer_file_unlock(fl_array.array, request->URI, fl_array.size);
+        file_lock_write_lock(fl_array.array, request->URI, fl_array.size);
+        handle_put(messageBuffer, socket, request, status_code);
+        send_response(socket, request, status_code, -1);
+        file_lock_write_unlock(fl_array.array, request->URI, fl_array.size);
       } else {
         // Method not supported.
         *status_code = 501;
-        response(socket, request, status_code, -1);
+        send_response(socket, request, status_code, -1);
       }
     }
 
@@ -566,11 +566,11 @@ int main(int argc, char **argv) {
 
   pthread_t threads[num_threads];
   queue_t *request_queue = queue_new(num_threads);
-  fl_array.array = newLockArray(num_threads);
+  fl_array.array = file_lock_table_init(num_threads);
   fl_array.size = num_threads;
 
   for (int i = 0; i < num_threads; i++) {
-    pthread_create(&threads[i], NULL, server_thread, (void *)request_queue);
+    pthread_create(&threads[i], NULL, worker_thread, (void *)request_queue);
   }
 
   Listener_Socket sock;
