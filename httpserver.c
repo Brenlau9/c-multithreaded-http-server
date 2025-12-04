@@ -11,6 +11,8 @@
 #include <string.h>
 #include <unistd.h>
 
+#define BUF_SIZE 2048
+
 typedef struct http_request {
   char *method;
   char *uri;
@@ -211,6 +213,19 @@ ssize_t parse_request_line(char *requestBuffer, http_request_t *request, int *st
   return (request_bytes);
 }
 
+// Returns the number of bytes of data in buf, assuming data is at the front
+// and the rest of the buffer is zero-padded.
+size_t buffer_data_length(const char *buf, size_t buf_size) {
+  // Scan from the end backwards to find the last non-zero byte.
+  for (ssize_t i = (ssize_t)buf_size - 1; i >= 0; i--) {
+    if (buf[i] != '\0') {
+      return (size_t)i + 1;
+    }
+  }
+  // All bytes are zero → no data
+  return 0;
+}
+
 /*
  * buffer_shift_left - shift the contents of buf left by `shift` bytes.
  * The first `shift` bytes are discarded; the remaining data is compacted.
@@ -316,24 +331,43 @@ int handle_put(char *messageBuffer, int socket, http_request_t *request,
     }
   }
 
-  // Write any body bytes already buffered after header parsing.
-  size_t content_length_num = atoi(request->content_length);
-  size_t bytes_written =
-      write_n_bytes(fd, messageBuffer, strlen(messageBuffer));
+  // Total number of bytes we expect in the body.
+  size_t content_length_num = (size_t)atoi(request->content_length);
 
-  // Stream the remaining bytes directly from socket to file.
-  pass_n_bytes(socket, fd, content_length_num - bytes_written);
+  // How many body bytes are already in messageBuffer?
+  size_t buffered_bytes = buffer_data_length(messageBuffer, BUF_SIZE);
+  if (buffered_bytes > content_length_num) {
+    // Be defensive: never write more than Content-Length.
+    buffered_bytes = content_length_num;
+  }
+
+  // Write the buffered body bytes first (if any).
+  if (buffered_bytes > 0) {
+    size_t written = write_n_bytes(fd, messageBuffer, buffered_bytes);
+    if (written != buffered_bytes) {
+      *status_code = 500;
+      close(fd);
+      return -1;
+    }
+  }
+
+  // Then stream the remaining bytes from the socket to the file.
+  size_t remaining = content_length_num - buffered_bytes;
+  if (remaining > 0) {
+    pass_n_bytes(socket, fd, remaining);
+  }
 
   close(fd);
   return 0;
 }
+
 
 /*
  * buffer_is_empty - check if buffer contains only zero bytes.
  * Returns 1 if empty, 0 otherwise.
  */
 int buffer_is_empty(char *messageBuffer) {
-  for (size_t i = 0; i < 2048; i++) {
+  for (size_t i = 0; i < BUF_SIZE; i++) {
     if (messageBuffer[i] != 0) {
       return 0;
     }
@@ -452,7 +486,7 @@ void *worker_thread(void *arg) {
       send_response(socket, request, status_code, -1);
     } else {
       // Shift buffer to drop the request line and keep header bytes.
-     buffer_shift_left(requestBuffer, 2048, request_bytes);
+      buffer_shift_left(requestBuffer, 2048, request_bytes);
       memcpy(headerBuffer, requestBuffer, 2048);
       memcpy(headerBufferCopy, headerBuffer, 2048);
 
@@ -550,7 +584,7 @@ int main(int argc, char **argv) {
 
   process_args(argc, argv, &num_threads, &port_number);
 
-  if (port_number < 1 || port_number > 65536) {
+  if (port_number < 1 || port_number > 65535) {
     fprintf(stderr, "Invalid Port\n");
     exit(1);
   }
