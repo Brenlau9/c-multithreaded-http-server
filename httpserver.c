@@ -12,6 +12,10 @@
 #include <unistd.h>
 
 #define BUF_SIZE 2048
+#define METHOD_MAX_LEN    8      // per spec: 1–8 alpha chars
+#define URI_MAX_LEN       63     // chars after leading '/'
+#define VERSION_MAX_LEN   15     // "HTTP/x.y" fits easily
+#define REQUEST_LINE_MAX  BUF_SIZE
 
 typedef struct http_request {
   char *method;
@@ -177,41 +181,132 @@ void http_request_free(http_request_t **preq) {
     *preq = NULL;
 }
 
-ssize_t parse_request_line(char *requestBuffer, http_request_t *request, int *status_code) {
-  const char *re = "^([a-zA-Z]{1,8}) (/[a-zA-Z0-9._-]{1,63}) "
-                   "(HTTP/[0-9]\\.[0-9])\r\n(.|\n)*$";
-  regex_t regex;
-  regmatch_t pmatch[5];
-  int *sc_ptr = status_code;
-
-  if (regcomp(&regex, re, REG_EXTENDED | REG_NEWLINE)) {
-    *sc_ptr = 500;
+// Parse the HTTP request line from requestBuffer.
+//
+// Expected grammar (simplified HTTP/1.1):
+//   <METHOD> SP <URI> SP <VERSION> CRLF
+//
+// Where:
+//   METHOD  = 1–8 alphabetic characters
+//   URI     = '/' + 1–63 characters of [A-Za-z0-9._-]
+//   VERSION = "HTTP/x.y" (you'll later enforce "HTTP/1.1")
+//
+// On success:
+//   - request->method, request->uri, request->version are allocated and set.
+//   - Returns the number of bytes consumed by the request line,
+//     including the terminating "\r\n" (this is what you pass to
+//     buffer_shift_left to move headers to the front).
+//
+// On failure:
+//   - *status_code is set to 400 (bad request) or 500 (internal error).
+//   - Returns -1.
+ssize_t parse_request_line(char *requestBuffer, http_request_t *request,
+                           int *status_code) {
+  // 1) Find the CRLF that terminates the request line.
+  char *line_end = strstr(requestBuffer, "\r\n");
+  if (line_end == NULL) {
+    // No CRLF in buffer → malformed request line.
+    *status_code = 400;
     return -1;
   }
-  if (regexec(&regex, requestBuffer, 5, pmatch, 0)) {
-    *sc_ptr = 400;
-    regfree(&regex);
+
+  // Number of bytes in the line *excluding* CRLF.
+  ssize_t line_len = line_end - requestBuffer;
+  if (line_len <= 0 || line_len >= REQUEST_LINE_MAX) {
+    *status_code = 400;
     return -1;
   }
 
-  request->method = calloc(pmatch[1].rm_eo - pmatch[1].rm_so + 1, sizeof(char));
-  request->uri = calloc(pmatch[2].rm_eo - pmatch[2].rm_so + 1, sizeof(char));
-  request->version =
-      calloc(pmatch[3].rm_eo - pmatch[3].rm_so + 1, sizeof(char));
+  // 2) Copy the request line into a temporary, NUL-terminated string
+  //    so we can safely use sscanf / string functions on it.
+  char line[REQUEST_LINE_MAX];
+  memcpy(line, requestBuffer, line_len);
+  line[line_len] = '\0';
 
-  strncpy(request->method, requestBuffer + pmatch[1].rm_so,
-          pmatch[1].rm_eo - pmatch[1].rm_so);
-  strncpy(request->uri, requestBuffer + pmatch[2].rm_so + 1,
-          pmatch[2].rm_eo - pmatch[2].rm_so - 1);
-  strncpy(request->version, requestBuffer + pmatch[3].rm_so,
-          pmatch[3].rm_eo - pmatch[3].rm_so);
+  // 3) Split into three tokens: METHOD SP URI SP VERSION
+  char method[METHOD_MAX_LEN + 1];           // +1 for NUL
+  char uri[URI_MAX_LEN + 2];                // leading '/' + up to 63 chars + NUL
+  char version[VERSION_MAX_LEN + 1];
 
-  ssize_t request_bytes = strlen(request->method) + strlen(request->uri) +
-                          strlen(request->version) + 3 + 2;
-  regfree(&regex);
+  // sscanf will stop tokens at whitespace, which matches our use case here.
+  if (sscanf(line, "%8s %64s %15s", method, uri, version) != 3) {
+    *status_code = 400;
+    return -1;
+  }
 
-  return (request_bytes);
+  // 4) Validate METHOD: 1–8 alphabetic characters.
+  size_t mlen = strlen(method);
+  if (mlen < 1 || mlen > METHOD_MAX_LEN) {
+    *status_code = 400;
+    return -1;
+  }
+  for (size_t i = 0; i < mlen; i++) {
+    char c = method[i];
+    if (!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z'))) {
+      *status_code = 400;
+      return -1;
+    }
+  }
+
+  // 5) Validate URI:
+  //    - Must start with '/'
+  //    - After '/', 1–63 chars of [A-Za-z0-9._-]
+  size_t ulen = strlen(uri);
+  if (ulen < 2 || ulen > (URI_MAX_LEN + 1)) {
+    // at least '/' + 1 char, at most '/' + 63 chars
+    *status_code = 400;
+    return -1;
+  }
+  if (uri[0] != '/') {
+    *status_code = 400;
+    return -1;
+  }
+  for (size_t i = 1; i < ulen; i++) {
+    char c = uri[i];
+    if (!((c >= 'A' && c <= 'Z') ||
+          (c >= 'a' && c <= 'z') ||
+          (c >= '0' && c <= '9') ||
+          c == '.' || c == '_' || c == '-')) {
+      *status_code = 400;
+      return -1;
+    }
+  }
+
+  // 6) Validate VERSION shape: must start with "HTTP/".
+  // Check for HTTP/1.1 comes later
+  if (strncmp(version, "HTTP/", 5) != 0) {
+    *status_code = 400;
+    return -1;
+  }
+
+  // 7) Allocate and store the parsed fields in the request struct.
+  //    - method: full string (e.g. "GET")
+  //    - uri   : without leading '/' (matches how your code uses it)
+  //    - version: full string (e.g. "HTTP/1.1")
+  request->method  = calloc(mlen + 1, sizeof(char));
+  request->uri     = calloc(ulen,     sizeof(char)); // ulen-1 chars + NUL
+  request->version = calloc(strlen(version) + 1, sizeof(char));
+
+  if (!request->method || !request->uri || !request->version) {
+    free(request->method);
+    free(request->uri);
+    free(request->version);
+    *status_code = 500;
+    return -1;
+  }
+
+  strcpy(request->method, method);
+  // store URI without the leading '/'
+  strcpy(request->uri, uri + 1);
+  strcpy(request->version, version);
+
+  // 8) Return the number of bytes consumed by the request line,
+  //    including the trailing "\r\n". This is what you will pass to
+  //    buffer_shift_left so that the headers start at index 0.
+  ssize_t request_bytes = line_len + 2;  // +2 for "\r\n"
+  return request_bytes;
 }
+
 
 // Returns the number of bytes of data in buf, assuming data is at the front
 // and the rest of the buffer is zero-padded.
@@ -401,6 +496,8 @@ void send_response(int socket, http_request_t *request, int *status_code,
   sprintf(sc_string, "%d ", *status_code);
 
   char status_phrase[30];
+  strcpy(status_phrase, "Unknown"); // default
+  
   if (*status_code == 200) {
     strcpy(status_phrase, "OK");
   } else if (*status_code == 201) {
