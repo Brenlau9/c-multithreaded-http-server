@@ -1,5 +1,7 @@
 # Multithreaded HTTP Server in C #
 
+![CI](https://github.com/brenlau9/c-multithreaded-http-server/actions/workflows/ci.yml/badge.svg)
+
 A lightweight, POSIX-threaded HTTP/1.1 server supporting concurrent GET and PUT requests.
 Built with a thread pool, a custom writer-priority reader–writer lock, and robust file I/O helpers.
 
