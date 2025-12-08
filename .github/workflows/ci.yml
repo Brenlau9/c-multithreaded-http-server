@@ -3,7 +3,7 @@ name: C HTTP Server CI
 on:
   push:
     branch: [ main, master ]
-  pull:
+  pull_request:
     branch: [ main, master ]
 
 jobs:
