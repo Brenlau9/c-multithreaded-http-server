@@ -45,6 +45,17 @@ format: $(FORMATS)
 	$(FORMAT) -i $<
 	touch $@
 
+.PHONY: check-format
+check-format:
+	@echo "Checking code formatting..."
+	@FILES="$$(find . -name '*.c' -o -name '*.h')"; \
+	if [ -n "$$FILES" ]; then \
+		clang-format -style=file -Werror --dry-run $$FILES; \
+	fi
+	@echo "Formatting OK"
+
+# ------- Tests -------
+
 .PHONY: test
 
 test: $(EXECBIN)

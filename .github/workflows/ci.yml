@@ -7,6 +7,19 @@ on:
     branch: [ main, master ]
 
 jobs:
+  format-check:
+    runs-on: ubuntu-latest
+    name: Clang-Format Check
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install clang-format
+        run: sudo apt-get update && sudo apt-get install -y clang-format
+
+      - name: Run clang-format check
+        run: |
+          make check-format
+
   build-and-test:
     runs-on: ubuntu-latest
 
@@ -18,11 +31,11 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential
-      
+
       - name: Make sure test scripts are executable
         run: | 
           chmod +x tests/integration/*.sh
-      
+
       - name: Build
         run: |
           make

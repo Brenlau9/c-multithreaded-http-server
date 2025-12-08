@@ -1,0 +1,13 @@
+# .clang-format
+BasedOnStyle: LLVM
+
+IndentWidth: 2
+TabWidth: 2
+UseTab: Never
+
+ColumnLimit: 100
+
+BreakBeforeBraces: Linux
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+SortIncludes: false

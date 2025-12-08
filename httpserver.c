@@ -12,10 +12,10 @@
 #include <unistd.h>
 
 #define BUF_SIZE 2048
-#define METHOD_MAX_LEN    8      // per spec: 1–8 alpha chars
-#define URI_MAX_LEN       63     // chars after leading '/'
-#define VERSION_MAX_LEN   15     // "HTTP/x.y" fits easily
-#define REQUEST_LINE_MAX  BUF_SIZE
+#define METHOD_MAX_LEN 8   // per spec: 1–8 alpha chars
+#define URI_MAX_LEN 63     // chars after leading '/'
+#define VERSION_MAX_LEN 15 // "HTTP/x.y" fits easily
+#define REQUEST_LINE_MAX BUF_SIZE
 
 typedef struct http_request {
   char *method;
@@ -40,7 +40,8 @@ static pthread_mutex_t fl_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 /* ---------------- File lock management ---------------- */
 
-file_lock_entry *file_lock_table_init(int size) {
+file_lock_entry *file_lock_table_init(int size)
+{
   file_lock_entry *fl_array = calloc(size, sizeof(file_lock_entry));
   for (int i = 0; i < size; i++) {
     fl_array[i].rwlock = rwlock_new();
@@ -50,7 +51,8 @@ file_lock_entry *file_lock_table_init(int size) {
   return fl_array;
 }
 
-int file_lock_find_empty(file_lock_entry *array, int size) {
+int file_lock_find_empty(file_lock_entry *array, int size)
+{
   for (int i = 0; i < size; i++) {
     if (array[i].count == 0 && array[i].uri == NULL) {
       return i;
@@ -59,7 +61,8 @@ int file_lock_find_empty(file_lock_entry *array, int size) {
   return -1;
 }
 
-int file_lock_find(file_lock_entry *array, char *uri, int size) {
+int file_lock_find(file_lock_entry *array, char *uri, int size)
+{
   for (int i = 0; i < size; i++) {
     if (array[i].uri != NULL && strcmp(array[i].uri, uri) == 0) {
       return i;
@@ -68,7 +71,8 @@ int file_lock_find(file_lock_entry *array, char *uri, int size) {
   return -1;
 }
 
-int file_lock_acquire_ref(file_lock_entry *array, char *uri, int size) {
+int file_lock_acquire_ref(file_lock_entry *array, char *uri, int size)
+{
   int pos = file_lock_find(array, uri, size);
   if (pos != -1) {
     array[pos].count++;
@@ -86,7 +90,8 @@ int file_lock_acquire_ref(file_lock_entry *array, char *uri, int size) {
   return pos;
 }
 
-void file_lock_release_ref(file_lock_entry *array, char *uri, int size) {
+void file_lock_release_ref(file_lock_entry *array, char *uri, int size)
+{
   int pos = file_lock_find(array, uri, size);
   if (pos != -1) {
     array[pos].count--;
@@ -100,7 +105,8 @@ void file_lock_release_ref(file_lock_entry *array, char *uri, int size) {
   }
 }
 
-void file_lock_read_lock(file_lock_entry *array, char *uri, int size) {
+void file_lock_read_lock(file_lock_entry *array, char *uri, int size)
+{
   pthread_mutex_lock(&fl_mutex);
   int pos = file_lock_acquire_ref(array, uri, size);
   rwlock_t *lock = array[pos].rwlock;
@@ -109,13 +115,13 @@ void file_lock_read_lock(file_lock_entry *array, char *uri, int size) {
   reader_lock(lock);
 }
 
-void file_lock_read_unlock(file_lock_entry *array, char *uri, int size) {
+void file_lock_read_unlock(file_lock_entry *array, char *uri, int size)
+{
   pthread_mutex_lock(&fl_mutex);
   int pos = file_lock_find(array, uri, size);
   if (pos == -1) {
     pthread_mutex_unlock(&fl_mutex);
-    fprintf(stderr, "Fatal error: file_lock_read_unlock for unknown uri %s\n",
-            uri);
+    fprintf(stderr, "Fatal error: file_lock_read_unlock for unknown uri %s\n", uri);
     exit(1);
   }
   rwlock_t *lock = array[pos].rwlock;
@@ -125,7 +131,8 @@ void file_lock_read_unlock(file_lock_entry *array, char *uri, int size) {
   reader_unlock(lock);
 }
 
-void file_lock_write_lock(file_lock_entry *array, char *uri, int size) {
+void file_lock_write_lock(file_lock_entry *array, char *uri, int size)
+{
   pthread_mutex_lock(&fl_mutex);
   int pos = file_lock_acquire_ref(array, uri, size);
   rwlock_t *lock = array[pos].rwlock;
@@ -134,13 +141,13 @@ void file_lock_write_lock(file_lock_entry *array, char *uri, int size) {
   writer_lock(lock);
 }
 
-void file_lock_write_unlock(file_lock_entry *array, char *uri, int size) {
+void file_lock_write_unlock(file_lock_entry *array, char *uri, int size)
+{
   pthread_mutex_lock(&fl_mutex);
   int pos = file_lock_find(array, uri, size);
   if (pos == -1) {
     pthread_mutex_unlock(&fl_mutex);
-    fprintf(stderr, "Fatal error: file_lock_write_unlock for unknown uri %s\n",
-            uri);
+    fprintf(stderr, "Fatal error: file_lock_write_unlock for unknown uri %s\n", uri);
     exit(1);
   }
   rwlock_t *lock = array[pos].rwlock;
@@ -156,7 +163,8 @@ file_lock_table fl_array;
 
 /* ---------------- HTTP request parsing and handling ---------------- */
 
-http_request_t *http_request_new(void) {
+http_request_t *http_request_new(void)
+{
   http_request_t *req = malloc(sizeof(http_request_t));
   req->method = NULL;
   req->uri = NULL;
@@ -166,19 +174,21 @@ http_request_t *http_request_new(void) {
   return (req);
 }
 
-void http_request_free(http_request_t **preq) {
-  if (preq == NULL || *preq == NULL) return;
+void http_request_free(http_request_t **preq)
+{
+  if (preq == NULL || *preq == NULL)
+    return;
 
-    http_request_t *req = *preq;
+  http_request_t *req = *preq;
 
-    free(req->method);
-    free(req->uri);
-    free(req->version);
-    free(req->content_length);
-    free(req->request_id);
+  free(req->method);
+  free(req->uri);
+  free(req->version);
+  free(req->content_length);
+  free(req->request_id);
 
-    free(req);
-    *preq = NULL;
+  free(req);
+  *preq = NULL;
 }
 
 // Parse the HTTP request line from requestBuffer.
@@ -200,8 +210,8 @@ void http_request_free(http_request_t **preq) {
 // On failure:
 //   - *status_code is set to 400 (bad request) or 500 (internal error).
 //   - Returns -1.
-ssize_t parse_request_line(char *requestBuffer, http_request_t *request,
-                           int *status_code) {
+ssize_t parse_request_line(char *requestBuffer, http_request_t *request, int *status_code)
+{
   // 1) Find the CRLF that terminates the request line.
   char *line_end = strstr(requestBuffer, "\r\n");
   if (line_end == NULL) {
@@ -224,8 +234,8 @@ ssize_t parse_request_line(char *requestBuffer, http_request_t *request,
   line[line_len] = '\0';
 
   // 3) Split into three tokens: METHOD SP URI SP VERSION
-  char method[METHOD_MAX_LEN + 1];           // +1 for NUL
-  char uri[URI_MAX_LEN + 2];                // leading '/' + up to 63 chars + NUL
+  char method[METHOD_MAX_LEN + 1]; // +1 for NUL
+  char uri[URI_MAX_LEN + 2];       // leading '/' + up to 63 chars + NUL
   char version[VERSION_MAX_LEN + 1];
 
   // sscanf will stop tokens at whitespace, which matches our use case here.
@@ -263,10 +273,8 @@ ssize_t parse_request_line(char *requestBuffer, http_request_t *request,
   }
   for (size_t i = 1; i < ulen; i++) {
     char c = uri[i];
-    if (!((c >= 'A' && c <= 'Z') ||
-          (c >= 'a' && c <= 'z') ||
-          (c >= '0' && c <= '9') ||
-          c == '.' || c == '_' || c == '-')) {
+    if (!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '.' ||
+          c == '_' || c == '-')) {
       *status_code = 400;
       return -1;
     }
@@ -283,8 +291,8 @@ ssize_t parse_request_line(char *requestBuffer, http_request_t *request,
   //    - method: full string (e.g. "GET")
   //    - uri   : without leading '/' (matches how your code uses it)
   //    - version: full string (e.g. "HTTP/1.1")
-  request->method  = calloc(mlen + 1, sizeof(char));
-  request->uri     = calloc(ulen,     sizeof(char)); // ulen-1 chars + NUL
+  request->method = calloc(mlen + 1, sizeof(char));
+  request->uri = calloc(ulen, sizeof(char)); // ulen-1 chars + NUL
   request->version = calloc(strlen(version) + 1, sizeof(char));
 
   if (!request->method || !request->uri || !request->version) {
@@ -303,14 +311,14 @@ ssize_t parse_request_line(char *requestBuffer, http_request_t *request,
   // 8) Return the number of bytes consumed by the request line,
   //    including the trailing "\r\n". This is what you will pass to
   //    buffer_shift_left so that the headers start at index 0.
-  ssize_t request_bytes = line_len + 2;  // +2 for "\r\n"
+  ssize_t request_bytes = line_len + 2; // +2 for "\r\n"
   return request_bytes;
 }
 
-
 // Returns the number of bytes of data in buf, assuming data is at the front
 // and the rest of the buffer is zero-padded.
-size_t buffer_data_length(const char *buf, size_t buf_size) {
+size_t buffer_data_length(const char *buf, size_t buf_size)
+{
   // Scan from the end backwards to find the last non-zero byte.
   for (ssize_t i = (ssize_t)buf_size - 1; i >= 0; i--) {
     if (buf[i] != '\0') {
@@ -325,7 +333,8 @@ size_t buffer_data_length(const char *buf, size_t buf_size) {
  * buffer_shift_left - shift the contents of buf left by `shift` bytes.
  * The first `shift` bytes are discarded; the remaining data is compacted.
  */
-void buffer_shift_left(char *buf, ssize_t max_size, ssize_t shift) {
+void buffer_shift_left(char *buf, ssize_t max_size, ssize_t shift)
+{
   ssize_t remaining_bytes = max_size - shift;
   char tempbuf[remaining_bytes];
   memcpy(tempbuf, buf + shift, remaining_bytes);
@@ -338,7 +347,8 @@ void buffer_shift_left(char *buf, ssize_t max_size, ssize_t shift) {
  * On success, stores the length string in request->content_length and
  * shifts headerBuffer so that it starts at the message body.
  */
-void parse_content_length(char *headerBuffer, http_request_t *request, int *status_code) {
+void parse_content_length(char *headerBuffer, http_request_t *request, int *status_code)
+{
   char *cl_pointer = strstr(headerBuffer, "Content-Length: ");
   int content_length = 0;
   if (cl_pointer != NULL) {
@@ -353,15 +363,16 @@ void parse_content_length(char *headerBuffer, http_request_t *request, int *stat
   if (newline_pointer == NULL) {
     *status_code = 500;
   } else {
- buffer_shift_left(headerBuffer, 2048, newline_pointer - headerBuffer + 4);
+    buffer_shift_left(headerBuffer, 2048, newline_pointer - headerBuffer + 4);
   }
 }
 
 /*
- * parse_request_id - parse Request-Id header (if present) into request->request_id.
- * Missing header is treated as ID 0.
+ * parse_request_id - parse Request-Id header (if present) into
+ * request->request_id. Missing header is treated as ID 0.
  */
-void parse_request_id(char *headerBuffer, http_request_t *request) {
+void parse_request_id(char *headerBuffer, http_request_t *request)
+{
   char *cl_pointer = strstr(headerBuffer, "Request-Id: ");
   int request_id = 0;
   if (cl_pointer != NULL) {
@@ -377,7 +388,8 @@ void parse_request_id(char *headerBuffer, http_request_t *request) {
  * handle_get - validate a GET request target and return file length.
  * Returns file length on success, -1 on error (status_code set accordingly).
  */
-int handle_get(http_request_t *request, int *status_code) {
+int handle_get(http_request_t *request, int *status_code)
+{
   if (strcmp(request->version, "HTTP/1.1") != 0) {
     *status_code = 505;
     return -1;
@@ -408,8 +420,8 @@ int handle_get(http_request_t *request, int *status_code) {
  * Writes any bytes already in messageBuffer, then streams the rest from socket.
  * Returns 0 on success, -1 on error (status_code set accordingly).
  */
-int handle_put(char *messageBuffer, int socket, http_request_t *request,
-               int *status_code) {
+int handle_put(char *messageBuffer, int socket, http_request_t *request, int *status_code)
+{
   if (strcmp(request->version, "HTTP/1.1") != 0) {
     *status_code = 505;
     return -1;
@@ -456,12 +468,12 @@ int handle_put(char *messageBuffer, int socket, http_request_t *request,
   return 0;
 }
 
-
 /*
  * buffer_is_empty - check if buffer contains only zero bytes.
  * Returns 1 if empty, 0 otherwise.
  */
-int buffer_is_empty(char *messageBuffer) {
+int buffer_is_empty(char *messageBuffer)
+{
   for (size_t i = 0; i < BUF_SIZE; i++) {
     if (messageBuffer[i] != 0) {
       return 0;
@@ -474,7 +486,8 @@ int buffer_is_empty(char *messageBuffer) {
  * log_audit_entry - log request outcome to stderr in CSV format:
  *   METHOD,URI,STATUS_CODE,REQUEST_ID
  */
-void log_audit_entry(http_request_t *request, int *status_code) {
+void log_audit_entry(http_request_t *request, int *status_code)
+{
   fprintf(stderr, "%s,%s,%d,%s\n", request->method, request->uri, *status_code,
           request->request_id);
 }
@@ -484,8 +497,8 @@ void log_audit_entry(http_request_t *request, int *status_code) {
  * For GET + 200, streams file contents after headers.
  * For other cases, sends a short text body with the status phrase.
  */
-void send_response(int socket, http_request_t *request, int *status_code,
-              int content_length) {
+void send_response(int socket, http_request_t *request, int *status_code, int content_length)
+{
   char response[2048];
 
   if (strcmp(request->version, "HTTP/1.1") != 0) {
@@ -497,7 +510,7 @@ void send_response(int socket, http_request_t *request, int *status_code,
 
   char status_phrase[30];
   strcpy(status_phrase, "Unknown"); // default
-  
+
   if (*status_code == 200) {
     strcpy(status_phrase, "OK");
   } else if (*status_code == 201) {
@@ -527,9 +540,8 @@ void send_response(int socket, http_request_t *request, int *status_code,
   int response_length;
   if (strcmp(request->method, "GET") == 0 && *status_code == 200) {
     // Header-only response, followed by file contents.
-    response_length = snprintf(
-        response, sizeof(response), "%s%s%s\r\nContent-Length: %d\r\n\r\n",
-        "HTTP/1.1 ", sc_string, status_phrase, content_length);
+    response_length = snprintf(response, sizeof(response), "%s%s%s\r\nContent-Length: %d\r\n\r\n",
+                               "HTTP/1.1 ", sc_string, status_phrase, content_length);
     write_n_bytes(socket, response, response_length);
 
     int fd = open(request->uri, O_RDONLY, 0);
@@ -539,9 +551,9 @@ void send_response(int socket, http_request_t *request, int *status_code,
     log_audit_entry(request, status_code);
   } else {
     // Send headers + short body containing the status phrase.
-    response_length = snprintf(
-        response, sizeof(response), "%s%s%s\r\nContent-Length: %d\r\n\r\n%s\n",
-        "HTTP/1.1 ", sc_string, status_phrase, content_length, status_phrase);
+    response_length =
+        snprintf(response, sizeof(response), "%s%s%s\r\nContent-Length: %d\r\n\r\n%s\n",
+                 "HTTP/1.1 ", sc_string, status_phrase, content_length, status_phrase);
     write_n_bytes(socket, response, response_length);
     log_audit_entry(request, status_code);
   }
@@ -554,7 +566,8 @@ void send_response(int socket, http_request_t *request, int *status_code,
  * Each thread pulls a socket fd from the queue, serves exactly one request,
  * and then closes the connection.
  */
-void *worker_thread(void *arg) {
+void *worker_thread(void *arg)
+{
   queue_t *request_queue = (queue_t *)arg;
 
   while (1) {
@@ -590,7 +603,8 @@ void *worker_thread(void *arg) {
       parse_content_length(headerBuffer, request, status_code);
       parse_request_id(headerBufferCopy, request);
 
-      // After parse_content_length, headerBuffer now starts at the message body.
+      // After parse_content_length, headerBuffer now starts at the message
+      // body.
       memcpy(messageBuffer, headerBuffer, 2048);
 
       if (strcmp(request->method, "GET") == 0) {
@@ -645,7 +659,8 @@ void *worker_thread(void *arg) {
  * process_args - parse -t <num_threads> and port number.
  * On error, prints a message and exits.
  */
-void process_args(int argc, char **argv, int *num_threads, int *port_number) {
+void process_args(int argc, char **argv, int *num_threads, int *port_number)
+{
   getopt(argc, argv, "t:");
   if (argc == 4) {
     if (optarg == NULL) {
@@ -675,7 +690,8 @@ void process_args(int argc, char **argv, int *num_threads, int *port_number) {
 
 /* ---------------- Main entry point ---------------- */
 
-int main(int argc, char **argv) {
+int main(int argc, char **argv)
+{
   int num_threads = 0;
   int port_number = 0;
 
