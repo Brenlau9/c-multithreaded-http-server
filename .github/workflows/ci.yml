@@ -1,0 +1,32 @@
+name: C HTTP Server CI
+
+on:
+  push:
+    branch: [ main, master ]
+  pull:
+    branch: [ main, master ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build essential
+      
+      - name: Make sure test scripts are executable
+        run: | 
+          chmod +x tests/integration/*.sh
+      
+      - name: Build
+        run: |
+          make
+      
+      - name: Run tests
+        run: |
+          make test
