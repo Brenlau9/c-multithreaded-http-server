@@ -12,7 +12,8 @@
 
 /* ---------------- Listener_Socket helpers ---------------- */
 
-int listener_init(Listener_Socket *sock, int port) {
+int listener_init(Listener_Socket *sock, int port)
+{
   if (!sock) {
     errno = EINVAL;
     return -1;
@@ -49,7 +50,8 @@ int listener_init(Listener_Socket *sock, int port) {
   return 0;
 }
 
-int listener_accept(Listener_Socket *sock) {
+int listener_accept(Listener_Socket *sock)
+{
   if (!sock) {
     errno = EINVAL;
     return -1;
@@ -63,7 +65,8 @@ int listener_accept(Listener_Socket *sock) {
 
 /* ---------------- Robust I/O helpers ---------------- */
 
-ssize_t read_until(int fd, char *buf, size_t max_bytes, const char *delim) {
+ssize_t read_until(int fd, char *buf, size_t max_bytes, const char *delim)
+{
   if (!buf || max_bytes == 0) {
     errno = EINVAL;
     return -1;
@@ -104,7 +107,8 @@ ssize_t read_until(int fd, char *buf, size_t max_bytes, const char *delim) {
   return (ssize_t)total;
 }
 
-ssize_t read_n_bytes(int fd, void *vbuf, size_t n) {
+ssize_t read_n_bytes(int fd, void *vbuf, size_t n)
+{
   unsigned char *buf = vbuf;
   size_t total = 0;
 
@@ -126,7 +130,8 @@ ssize_t read_n_bytes(int fd, void *vbuf, size_t n) {
   return (ssize_t)total;
 }
 
-ssize_t write_n_bytes(int fd, const void *vbuf, size_t n) {
+ssize_t write_n_bytes(int fd, const void *vbuf, size_t n)
+{
   const unsigned char *buf = vbuf;
   size_t total = 0;
 
@@ -148,7 +153,8 @@ ssize_t write_n_bytes(int fd, const void *vbuf, size_t n) {
   return (ssize_t)total;
 }
 
-ssize_t pass_n_bytes(int src, int dst, size_t n) {
+ssize_t pass_n_bytes(int src, int dst, size_t n)
+{
   char buffer[4096];
   size_t total_written = 0;
 
@@ -172,8 +178,7 @@ ssize_t pass_n_bytes(int src, int dst, size_t n) {
 
     size_t written_for_chunk = 0;
     while ((ssize_t)written_for_chunk < r) {
-      ssize_t w =
-          write(dst, buffer + written_for_chunk, (size_t)r - written_for_chunk);
+      ssize_t w = write(dst, buffer + written_for_chunk, (size_t)r - written_for_chunk);
       if (w < 0) {
         if (errno == EINTR) {
           continue;

@@ -15,7 +15,8 @@ typedef struct queue {
   pthread_cond_t not_empty;
   pthread_cond_t not_full;
 } queue;
-queue_t *queue_new(int size) {
+queue_t *queue_new(int size)
+{
   queue_t *Q;
   Q = calloc(1, sizeof(queue_t));
   Q->arr = calloc(size, sizeof(void *));
@@ -28,7 +29,8 @@ queue_t *queue_new(int size) {
   pthread_cond_init(&Q->not_full, NULL);
   return Q;
 }
-void queue_delete(queue_t **q) {
+void queue_delete(queue_t **q)
+{
   if (q != NULL && *q != NULL) {
     if ((*q)->arr != NULL) {
       free((*q)->arr);
@@ -37,7 +39,8 @@ void queue_delete(queue_t **q) {
     *q = NULL;
   }
 }
-bool queue_push(queue_t *q, void *elem) {
+bool queue_push(queue_t *q, void *elem)
+{
   if (q != NULL) {
     pthread_mutex_lock(&q->mutex);
     while (q->num_elem == q->size) {
@@ -53,7 +56,8 @@ bool queue_push(queue_t *q, void *elem) {
     return false;
   }
 }
-bool queue_pop(queue_t *q, void **elem) {
+bool queue_pop(queue_t *q, void **elem)
+{
   if (q != NULL) {
     pthread_mutex_lock(&q->mutex);
     while (q->num_elem == 0) {

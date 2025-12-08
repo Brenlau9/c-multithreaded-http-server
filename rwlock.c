@@ -14,7 +14,8 @@ typedef struct rwlock {
   int waiting_writers;
 } rwlock;
 
-rwlock_t *rwlock_new(void) {
+rwlock_t *rwlock_new(void)
+{
   rwlock_t *rwlock = calloc(1, sizeof(rwlock_t));
   pthread_mutex_init(&rwlock->mutex, NULL);
   pthread_cond_init(&rwlock->can_read, NULL);
@@ -25,7 +26,8 @@ rwlock_t *rwlock_new(void) {
   rwlock->waiting_writers = 0;
   return rwlock;
 }
-void rwlock_delete(rwlock_t **rw) {
+void rwlock_delete(rwlock_t **rw)
+{
   if (rw != NULL && *rw != NULL) {
     pthread_mutex_destroy(&(*rw)->mutex);
     pthread_cond_destroy(&(*rw)->can_read);
@@ -34,7 +36,8 @@ void rwlock_delete(rwlock_t **rw) {
     *rw = NULL;
   }
 }
-void reader_lock(rwlock_t *rw) {
+void reader_lock(rwlock_t *rw)
+{
   pthread_mutex_lock(&rw->mutex);
   /*
   If there are active/waiting writers, readers must wait
@@ -48,7 +51,8 @@ void reader_lock(rwlock_t *rw) {
 
   pthread_mutex_unlock(&rw->mutex);
 }
-void reader_unlock(rwlock_t *rw) {
+void reader_unlock(rwlock_t *rw)
+{
   pthread_mutex_lock(&rw->mutex);
   /*
   If there are waiting writers, prioritize them
@@ -63,7 +67,8 @@ void reader_unlock(rwlock_t *rw) {
 
   pthread_mutex_unlock(&rw->mutex);
 }
-void writer_lock(rwlock_t *rw) {
+void writer_lock(rwlock_t *rw)
+{
   pthread_mutex_lock(&rw->mutex);
   /*
   If there are active readers/writers, writer must wait
@@ -78,7 +83,8 @@ void writer_lock(rwlock_t *rw) {
 
   pthread_mutex_unlock(&rw->mutex);
 }
-void writer_unlock(rwlock_t *rw) {
+void writer_unlock(rwlock_t *rw)
+{
   pthread_mutex_lock(&rw->mutex);
   /*
   If there are waiting writers, signal them first
