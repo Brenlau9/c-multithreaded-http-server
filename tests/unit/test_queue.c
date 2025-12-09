@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
-#include <string.h>
+#include <pthread.h>
 
 #include "../../queue.h"
 
@@ -13,11 +13,7 @@ static int tests_failed = 0;
     tests_run++;                            \
     printf("Running %s...\n", #fn);         \
     fn();                                   \
-    if (tests_failed == 0) {                \
-      printf("[PASS] %s\n\n", #fn);         \
-    } else {                                \
-      printf("[DONE] %s (failures so far: %d)\n\n", #fn, tests_failed); \
-    }                                       \
+    printf("[DONE] %s\n\n", #fn);           \
   } while (0)
 
 #define CHECK(cond)                                                             \
@@ -26,6 +22,16 @@ static int tests_failed = 0;
       tests_failed++;                                                           \
       fprintf(stderr, "[FAIL] %s:%d: %s\n", __FILE__, __LINE__, #cond);         \
       return;                                                                   \
+    }                                                                           \
+  } while (0)
+
+/* For use inside pthread entry functions (which must return void *). */
+#define CHECK_THREAD(cond)                                                      \
+  do {                                                                          \
+    if (!(cond)) {                                                              \
+      tests_failed++;                                                           \
+      fprintf(stderr, "[FAIL] %s:%d: %s\n", __FILE__, __LINE__, #cond);         \
+      return NULL;                                                              \
     }                                                                           \
   } while (0)
 
@@ -63,57 +69,78 @@ static void test_queue_push_pop_basic(void) {
   CHECK(out == &c);
   CHECK(*out == 3);
 
-  // Now queue should be empty.
-  CHECK(queue_pop(q, (void **) &out) == false);
-
   queue_delete(&q);
   CHECK(q == NULL);
 }
 
-static void test_queue_push_until_full(void) {
-  const int capacity = 3;
-  queue_t  *q        = queue_new(capacity);
+typedef struct {
+  queue_t *q;
+  int      count;
+} pc_args_t;
+
+static void *producer_thread(void *arg) {
+  pc_args_t *pc = arg;
+  for (int i = 0; i < pc->count; i++) {
+    int *value = malloc(sizeof(int));
+    CHECK_THREAD(value != NULL);
+    *value = i;
+    CHECK_THREAD(queue_push(pc->q, value) == true);
+  }
+  return NULL;
+}
+
+static void *consumer_thread(void *arg) {
+  pc_args_t *pc = arg;
+  for (int i = 0; i < pc->count; i++) {
+    int *value = NULL;
+    CHECK_THREAD(queue_pop(pc->q, (void **) &value) == true);
+    CHECK_THREAD(value != NULL);
+    CHECK_THREAD(*value == i);
+    free(value);
+  }
+  return NULL;
+}
+
+static void test_queue_blocking_producer_consumer(void) {
+  const int capacity = 4;
+  const int nitems   = 20;
+
+  queue_t *q = queue_new(capacity);
   CHECK(q != NULL);
 
-  int vals[4] = {10, 20, 30, 40};
+  pc_args_t pc = {
+    .q     = q,
+    .count = nitems,
+  };
 
-  // Fill to capacity.
-  CHECK(queue_push(q, &vals[0]) == true);
-  CHECK(queue_push(q, &vals[1]) == true);
-  CHECK(queue_push(q, &vals[2]) == true);
+  pthread_t prod, cons;
+  int rc;
 
-  // Now it should be full; the next push should fail.
-  CHECK(queue_push(q, &vals[3]) == false);
+  rc = pthread_create(&prod, NULL, producer_thread, &pc);
+  CHECK(rc == 0);
+  rc = pthread_create(&cons, NULL, consumer_thread, &pc);
+  CHECK(rc == 0);
 
-  // Pop everything and verify order.
-  int *out = NULL;
-  CHECK(queue_pop(q, (void **) &out) == true);
-  CHECK(*out == 10);
-  CHECK(queue_pop(q, (void **) &out) == true);
-  CHECK(*out == 20);
-  CHECK(queue_pop(q, (void **) &out) == true);
-  CHECK(*out == 30);
-
-  // Now empty again.
-  CHECK(queue_pop(q, (void **) &out) == false);
+  rc = pthread_join(prod, NULL);
+  CHECK(rc == 0);
+  rc = pthread_join(cons, NULL);
+  CHECK(rc == 0);
 
   queue_delete(&q);
   CHECK(q == NULL);
 }
 
 static void test_queue_null_behavior(void) {
-  // These should fail safely, not crash.
   CHECK(queue_push(NULL, NULL) == false);
 
   void *out = (void *) 0xDEADBEEF;
   CHECK(queue_pop(NULL, &out) == false);
-  // out contents are unspecified; we only care that it doesn't crash.
 }
 
 int main(void) {
   RUN_TEST(test_queue_new_and_delete);
   RUN_TEST(test_queue_push_pop_basic);
-  RUN_TEST(test_queue_push_until_full);
+  RUN_TEST(test_queue_blocking_producer_consumer);
   RUN_TEST(test_queue_null_behavior);
 
   printf("Queue unit tests: %d run, %d failed\n", tests_run, tests_failed);

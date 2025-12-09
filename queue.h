@@ -48,24 +48,30 @@ void queue_delete(queue_t **q);
 /**
  * @brief Push an element onto the back of the queue.
  *
- * @param q    Queue instance.
+ * This is a blocking operation. If the queue is full, it will block
+ * until space becomes available or the queue is destroyed.
+ *
+ * @param q    Queue instance (must not be NULL).
  * @param elem Pointer to the element to insert.
  *
  * @return true  if the element was successfully added.
- *         false if `q` is NULL or the queue is full.
+ *         false if `q` is NULL.
  */
 bool queue_push(queue_t *q, void *elem);
 
 /**
  * @brief Pop the element at the front of the queue.
  *
- * On success, `*elem` is set to the popped value and the queue
- * size is reduced by one.
+ * This is a blocking operation. If the queue is empty, it will block
+ * until an element is pushed or the queue is destroyed.
  *
- * @param q    Queue instance.
+ * On success, `*elem` is set to the popped value.
+ *
+ * @param q    Queue instance (must not be NULL).
  * @param elem Output pointer to store the removed element.
  *
  * @return true  if an element was popped successfully.
- *         false if `q` is NULL or the queue is empty.
+ *         false if `q` is NULL.
  */
 bool queue_pop(queue_t *q, void **elem);
+

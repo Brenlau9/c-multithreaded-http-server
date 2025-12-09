@@ -24,20 +24,13 @@ all: $(EXECBIN)
 $(EXECBIN): $(OBJECTS)
 	$(CC) $(CFLAGS) -o $@ $(OBJECTS)
 
-# ------- Unit test binaries -------
-
-tests/unit/test_queue: tests/unit/test_queue.o queue.o
-	$(CC) $(CFLAGS) -o $@ $^
-
-tests/unit/test_rwlock: tests/unit/test_rwlock.o rwlock.o
-	$(CC) $(CFLAGS) -o $@ $^
-
 # Compile each .c into a .o
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 clean:
-	rm -f $(EXECBIN) $(OBJECTS)
+	find . -name '*.o' -delete
+	rm -f $(EXECBIN) $(OBJECTS) $(UNIT_TESTS)
 
 nuke: clean
 	rm -rf .format
@@ -65,11 +58,19 @@ check-format:
 	fi
 	@echo "Formatting OK"
 
+# ------- Unit test binaries -------
+
+tests/unit/test_queue: tests/unit/test_queue.o queue.o
+	$(CC) $(CFLAGS) -o $@ $^
+
+tests/unit/test_rwlock: tests/unit/test_rwlock.o rwlock.o
+	$(CC) $(CFLAGS) -o $@ $^
+
 # ------- Tests -------
 
 .PHONY: test
 
-test: $(EXECBIN)
+test: $(EXECBIN) $(UNIT_TESTS)
 	./tests/unit/test_queue
 	./tests/unit/test_rwlock
 	./tests/integration/test_cli.sh
