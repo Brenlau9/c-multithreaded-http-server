@@ -70,8 +70,8 @@ check-format:
 .PHONY: test
 
 test: $(EXECBIN)
-	./tests/unit/test_queue.c
-	./tests/unit/test_rwlock.c
+	./tests/unit/test_queue
+	./tests/unit/test_rwlock
 	./tests/integration/test_cli.sh
 	./tests/integration/test_endpoints.sh
 	./tests/integration/test_put_handler.sh
