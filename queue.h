@@ -51,7 +51,7 @@ void queue_delete(queue_t **q);
  * @param q    Queue instance.
  * @param elem Pointer to the element to insert.
  *
- * @return true  if the element was successfully added.  
+ * @return true  if the element was successfully added.
  *         false if `q` is NULL or the queue is full.
  */
 bool queue_push(queue_t *q, void *elem);
@@ -65,8 +65,7 @@ bool queue_push(queue_t *q, void *elem);
  * @param q    Queue instance.
  * @param elem Output pointer to store the removed element.
  *
- * @return true  if an element was popped successfully.  
+ * @return true  if an element was popped successfully.
  *         false if `q` is NULL or the queue is empty.
  */
 bool queue_pop(queue_t *q, void **elem);
-
