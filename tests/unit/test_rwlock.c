@@ -6,31 +6,32 @@
 
 #include "../../rwlock.h"
 
-static int tests_run    = 0;
+static int tests_run = 0;
 static int tests_failed = 0;
 
-#define RUN_TEST(fn)                        \
-  do {                                      \
-    tests_run++;                            \
-    printf("Running %s...\n", #fn);         \
-    fn();                                   \
-    if (tests_failed == 0) {                \
-      printf("[PASS] %s\n\n", #fn);         \
-    } else {                                \
-      printf("[DONE] %s (failures so far: %d)\n\n", #fn, tests_failed); \
-    }                                       \
+#define RUN_TEST(fn)                                                                               \
+  do {                                                                                             \
+    tests_run++;                                                                                   \
+    printf("Running %s...\n", #fn);                                                                \
+    fn();                                                                                          \
+    if (tests_failed == 0) {                                                                       \
+      printf("[PASS] %s\n\n", #fn);                                                                \
+    } else {                                                                                       \
+      printf("[DONE] %s (failures so far: %d)\n\n", #fn, tests_failed);                            \
+    }                                                                                              \
   } while (0)
 
-#define CHECK(cond)                                                             \
-  do {                                                                          \
-    if (!(cond)) {                                                              \
-      tests_failed++;                                                           \
-      fprintf(stderr, "[FAIL] %s:%d: %s\n", __FILE__, __LINE__, #cond);         \
-      return;                                                                   \
-    }                                                                           \
+#define CHECK(cond)                                                                                \
+  do {                                                                                             \
+    if (!(cond)) {                                                                                 \
+      tests_failed++;                                                                              \
+      fprintf(stderr, "[FAIL] %s:%d: %s\n", __FILE__, __LINE__, #cond);                            \
+      return;                                                                                      \
+    }                                                                                              \
   } while (0)
 
-static void test_rwlock_new_and_delete(void) {
+static void test_rwlock_new_and_delete(void)
+{
   rwlock_t *rw = rwlock_new();
   CHECK(rw != NULL);
 
@@ -39,7 +40,8 @@ static void test_rwlock_new_and_delete(void) {
 }
 
 // Simple single-thread smoke test: lock/unlock in reader/writer modes.
-static void test_rwlock_single_thread_basic(void) {
+static void test_rwlock_single_thread_basic(void)
+{
   rwlock_t *rw = rwlock_new();
   CHECK(rw != NULL);
 
@@ -66,24 +68,26 @@ static void test_rwlock_single_thread_basic(void) {
 // Shared state for multithread tests.
 typedef struct {
   rwlock_t *rw;
-  int       value;
+  int value;
 } shared_t;
 
-static void *reader_thread_func(void *arg) {
-  shared_t *shared = (shared_t *) arg;
+static void *reader_thread_func(void *arg)
+{
+  shared_t *shared = (shared_t *)arg;
 
   for (int i = 0; i < 10000; i++) {
     reader_lock(shared->rw);
     int v = shared->value;
-    (void) v;  // We don't assert here; just ensure no crashes/data races under lock.
+    (void)v; // We don't assert here; just ensure no crashes/data races under lock.
     reader_unlock(shared->rw);
   }
 
   return NULL;
 }
 
-static void *writer_thread_func(void *arg) {
-  shared_t *shared = (shared_t *) arg;
+static void *writer_thread_func(void *arg)
+{
+  shared_t *shared = (shared_t *)arg;
 
   for (int i = 0; i < 1000; i++) {
     writer_lock(shared->rw);
@@ -99,13 +103,14 @@ static void *writer_thread_func(void *arg) {
 }
 
 // Light concurrency test: multiple readers + one writer updating a counter.
-static void test_rwlock_readers_and_writer(void) {
+static void test_rwlock_readers_and_writer(void)
+{
   rwlock_t *rw = rwlock_new();
   CHECK(rw != NULL);
 
   shared_t shared = {
-    .rw    = rw,
-    .value = 0,
+      .rw = rw,
+      .value = 0,
   };
 
   const int num_readers = 4;
@@ -137,7 +142,8 @@ static void test_rwlock_readers_and_writer(void) {
   CHECK(rw == NULL);
 }
 
-int main(void) {
+int main(void)
+{
   RUN_TEST(test_rwlock_new_and_delete);
   RUN_TEST(test_rwlock_single_thread_basic);
   RUN_TEST(test_rwlock_readers_and_writer);

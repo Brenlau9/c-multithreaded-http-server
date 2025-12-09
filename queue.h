@@ -74,4 +74,3 @@ bool queue_push(queue_t *q, void *elem);
  *         false if `q` is NULL.
  */
 bool queue_pop(queue_t *q, void **elem);
-
