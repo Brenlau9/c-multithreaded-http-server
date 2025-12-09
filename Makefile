@@ -6,6 +6,9 @@ SOURCES  = $(wildcard *.c)
 HEADERS  = $(wildcard *.h)
 OBJECTS  = $(SOURCES:%.c=%.o)
 
+# Unit test binaries
+UNIT_TESTS = tests/unit/test_queue tests/unit/test_rwlock
+
 # Formatting
 FORMATS  = $(SOURCES:%.c=.format/%.c.fmt) $(HEADERS:%.h=.format/%.h.fmt)
 
@@ -20,6 +23,14 @@ all: $(EXECBIN)
 # Link final executable from all object files
 $(EXECBIN): $(OBJECTS)
 	$(CC) $(CFLAGS) -o $@ $(OBJECTS)
+
+# ------- Unit test binaries -------
+
+tests/unit/test_queue: tests/unit/test_queue.o queue.o
+	$(CC) $(CFLAGS) -o $@ $^
+
+tests/unit/test_rwlock: tests/unit/test_rwlock.o rwlock.o
+	$(CC) $(CFLAGS) -o $@ $^
 
 # Compile each .c into a .o
 %.o: %.c
@@ -59,6 +70,8 @@ check-format:
 .PHONY: test
 
 test: $(EXECBIN)
+	./tests/unit/test_queue.c
+	./tests/unit/test_rwlock.c
 	./tests/integration/test_cli.sh
 	./tests/integration/test_endpoints.sh
 	./tests/integration/test_put_handler.sh
