@@ -1,5 +1,6 @@
 # Multithreaded HTTP Server in C #
 
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![CI](https://github.com/brenlau9/c-multithreaded-http-server/actions/workflows/ci.yml/badge.svg)
 
 A lightweight, POSIX-threaded HTTP/1.1 server supporting concurrent GET and PUT requests.
@@ -34,6 +35,17 @@ Built with a thread pool, a custom writer-priority reader–writer lock, and rob
 - read_until() for safe header parsing
 - read_n_bytes() + pass_n_bytes() for PUT bodies
 - Clean socket setup and teardown
+
+## What This Project Demonstrates
+
+- Systems programming with C, POSIX sockets, and file I/O
+- Concurrency and synchronization (mutexes, condition variables, rwlocks)
+- Design and implementation of a multithreaded server
+- HTTP request parsing and robust error handling
+- Reproducible integration testing workflows
+- CI via GitHub Actions
+- Experience with Linux tooling, Makefiles, and debugging
+
 ## 📁 Project Structure ##
 ```bash
 .
@@ -46,7 +58,11 @@ Built with a thread pool, a custom writer-priority reader–writer lock, and rob
     └── integration/
         ├── test_cli.sh
         ├── test_endpoints.sh
-        └── test_concurrency.sh   # Optional concurrency test
+        ├── test_put_handler.sh
+        └── test_concurrency.sh
+    └── unit/
+        ├── test_queue.c
+        ├── test_rwlock.c
 ```
 ## 🛠️ Build Instructions ##
 ### Build ###
@@ -80,21 +96,7 @@ Run all tests:
 ```bash
 make test
 ```
-### Included Tests ###
-✔️ test_cli.sh
-- Validates CLI argument behavior
-- Ensures invalid usage returns exit code 1
-✔️ test_endpoints.sh
-- GET existing file → 200
-- GET nonexistent → 404
-- PUT new file → 201
-- GET after PUT → 200 + full body check
-✔️ test_concurrency.sh (optional)
-- Runs parallel GETs and PUTs
-- Ensures:
-    - No deadlocks
-    - Correct final file contents
-    - Writer-priority enforcement
+
 ## 🧩 Architecture Overview ##
 ### Thread Pool Model ###
 - Listener thread continuously accepts connections
@@ -119,6 +121,7 @@ Rules:
 - If any writer is waiting, new readers must wait
 - Writer gets exclusive access
 - Readers may run concurrently when no writer is waiting
+
 ## 🧪 Manual Testing Examples ##
 ### GET existing file ###
 ```bash
@@ -137,12 +140,11 @@ curl -X PUT -H "Content-Length: 3" \
      --data-binary "xyz" \
      http://127.0.0.1:8080/a.txt
 ```
+
 ## 🧭 Future Improvements ##
-- Break down large functions into smaller, modular units to improve clarity and maintainability.
-- Refactor internal logic to reduce duplication and simplify complex control flow.
-- Improve documentation and inline comments, especially for concurrency mechanisms and I/O handling.
-- Reorganize the codebase into more focused source files to establish cleaner separation of concerns.
-- Optimize performance-critical routines such as request parsing and file read/write operations.
-- Support for ```DELETE```
+- Add DELETE support
+- Improve modularity and reduce duplication
+- Expand test coverage for concurrency and edge cases
+- Add graceful shutdown for worker threads
 
 
