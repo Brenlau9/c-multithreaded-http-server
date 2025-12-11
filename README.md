@@ -3,8 +3,7 @@
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![CI](https://github.com/brenlau9/c-multithreaded-http-server/actions/workflows/ci.yml/badge.svg)
 
-A lightweight, POSIX-threaded HTTP/1.1 server supporting concurrent GET and PUT requests.
-Built with a thread pool, a custom writer-priority reader–writer lock, and robust file I/O helpers.
+A multithreaded HTTP/1.1 server implemented in C, demonstrating systems programming, concurrency primitives, and low-level networking.
 
 ## 🚀 Features ##
 ### HTTP/1.1 GET ###
@@ -110,36 +109,10 @@ Each file name is associated with:
 Worker behavior:
 - GET → reader_lock(), read file, reader_unlock()
 - PUT → writer_lock(), write/overwrite, writer_unlock()
-### Writer-Priority Read–Write Lock ###
-Tracks:
-- active_readers
-- active_writers
-- waiting_readers
-- waiting_writers
-Rules:
-- A writer must wait until no readers or writers are active
-- If any writer is waiting, new readers must wait
-- Writer gets exclusive access
-- Readers may run concurrently when no writer is waiting
-
-## 🧪 Manual Testing Examples ##
-### GET existing file ###
-```bash
-echo "hello" > a.txt
-curl http://127.0.0.1:8080/a.txt
-```
-PUT new file
-```bash
-curl -X PUT -H "Content-Length: 11" \
-     --data-binary "new content" \
-     http://127.0.0.1:8080/b.txt
-```
-Overwrite existing file
-```bash
-curl -X PUT -H "Content-Length: 3" \
-     --data-binary "xyz" \
-     http://127.0.0.1:8080/a.txt
-```
+### Writer-Priority Read–Write Lock
+- Ensures PUT operations get exclusive access.
+- Allows multiple concurrent GET requests when no writer is waiting.
+- Prevents writer starvation through explicit writer-priority logic.
 
 ## 🧭 Future Improvements ##
 - Add DELETE support
@@ -147,4 +120,6 @@ curl -X PUT -H "Content-Length: 3" \
 - Expand test coverage for concurrency and edge cases
 - Add graceful shutdown for worker threads
 
+## 📄 License
+This project is licensed under the MIT License. See the [LICENSE](./LICENSE) file for details.
 
