@@ -96,6 +96,26 @@ Run all tests:
 make test
 ```
 
+## 📈 Benchmarking ##
+There is a repeatable k6 benchmark wrapper that:
+- starts the server in a temporary working directory
+- creates one benchmark file via `PUT`
+- runs concurrent `GET` requests against that file
+- cleans up the temporary server directory on exit
+
+Run it with:
+```bash
+make benchmark-k6
+```
+
+Common overrides:
+```bash
+PORT=8084 THREADS=8 VUS=100 DURATION=30s FILE_SIZE_BYTES=262144 make benchmark-k6
+```
+
+Requirements:
+- `k6` installed and available on `PATH`
+
 ## 🧩 Architecture Overview ##
 ### Thread Pool Model ###
 - Listener thread continuously accepts connections
@@ -122,4 +142,3 @@ Worker behavior:
 
 ## 📄 License
 This project is licensed under the MIT License. See the [LICENSE](./LICENSE) file for details.
-

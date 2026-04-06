@@ -82,6 +82,10 @@ test: $(EXECBIN) $(UNIT_TESTS)
 	./tests/integration/test_put_handler.sh
 	./tests/integration/test_concurrency.sh
 
+.PHONY: benchmark-k6
+benchmark-k6: $(EXECBIN)
+	./scripts/benchmark_get_k6.sh
+
 # =========================
 # Cleaning
 # =========================
